@@ -358,8 +358,17 @@
             <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4">
               <div className="max-w-7xl mx-auto">
                 <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-                  <h1 className="text-4xl font-bold text-gray-800 mb-2">🍽️ Meal Planner + Digital Cookbook</h1>
-                  <p className="text-gray-600">Plan your week and organize your favorite recipes</p>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h1 className="text-4xl font-bold text-gray-800 mb-2">🍽️ Meal Planner + Digital Cookbook</h1>
+                      <p className="text-gray-600">Plan your week and organize your favorite recipes</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                        v1.0.0
+                      </div>
+                    </div>
+                  </div>
                   
                   <div className="flex gap-2 mt-4">
                     <button onClick={exportData} className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
@@ -489,13 +498,34 @@
                         />
 
                         <div className="grid grid-cols-2 gap-3 mb-3">
-                          <input type="number" placeholder="Servings" value={customRecipe.servings} onChange={(e) => setCustomRecipe({ ...customRecipe, servings: e.target.value })} className="p-2 border rounded" />
-                          <input type="text" placeholder="Prep Time (e.g., 10 min)" value={customRecipe.prepTime} onChange={(e) => setCustomRecipe({ ...customRecipe, prepTime: e.target.value })} className="p-2 border rounded" />
-                          <input type="text" placeholder="Cook Time (e.g., 20 min)" value={customRecipe.cookTime} onChange={(e) => setCustomRecipe({ ...customRecipe, cookTime: e.target.value })} className="p-2 border rounded" />
-                          <input type="number" placeholder="Calories (optional)" value={customRecipe.calories} onChange={(e) => setCustomRecipe({ ...customRecipe, calories: e.target.value })} className="p-2 border rounded" />
-                          <input type="number" placeholder="Protein (g)" value={customRecipe.protein} onChange={(e) => setCustomRecipe({ ...customRecipe, protein: e.target.value })} className="p-2 border rounded" />
-                          <input type="number" placeholder="Carbs (g)" value={customRecipe.carbs} onChange={(e) => setCustomRecipe({ ...customRecipe, carbs: e.target.value })} className="p-2 border rounded" />
-                          <input type="number" placeholder="Fat (g)" value={customRecipe.fat} onChange={(e) => setCustomRecipe({ ...customRecipe, fat: e.target.value })} className="p-2 border rounded" />
+                          <div>
+                            <label className="block text-sm font-semibold mb-1">Servings</label>
+                            <input type="number" placeholder="e.g., 4" value={customRecipe.servings} onChange={(e) => setCustomRecipe({ ...customRecipe, servings: e.target.value })} className="w-full p-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1">Prep Time</label>
+                            <input type="text" placeholder="e.g., 10 min" value={customRecipe.prepTime} onChange={(e) => setCustomRecipe({ ...customRecipe, prepTime: e.target.value })} className="w-full p-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1">Cook Time</label>
+                            <input type="text" placeholder="e.g., 20 min" value={customRecipe.cookTime} onChange={(e) => setCustomRecipe({ ...customRecipe, cookTime: e.target.value })} className="w-full p-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1">Calories (optional)</label>
+                            <input type="number" placeholder="e.g., 450" value={customRecipe.calories} onChange={(e) => setCustomRecipe({ ...customRecipe, calories: e.target.value })} className="w-full p-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1">Protein (g, optional)</label>
+                            <input type="number" placeholder="e.g., 35" value={customRecipe.protein} onChange={(e) => setCustomRecipe({ ...customRecipe, protein: e.target.value })} className="w-full p-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1">Carbs (g, optional)</label>
+                            <input type="number" placeholder="e.g., 48" value={customRecipe.carbs} onChange={(e) => setCustomRecipe({ ...customRecipe, carbs: e.target.value })} className="w-full p-2 border rounded" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold mb-1">Fat (g, optional)</label>
+                            <input type="number" placeholder="e.g., 12" value={customRecipe.fat} onChange={(e) => setCustomRecipe({ ...customRecipe, fat: e.target.value })} className="w-full p-2 border rounded" />
+                          </div>
                         </div>
 
                         <div className="mb-3">
