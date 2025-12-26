@@ -3,14 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meal Planner + Grocery Optimizer</title>
+    <title>Meal Planner + Digital Cookbook</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
     
     <style>
         body {
@@ -21,14 +18,17 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
+        .instructions-text {
+            white-space: pre-wrap;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
-        const { Calendar, ShoppingCart, DollarSign, TrendingUp, Plus, Trash2, Save, Download, Upload } = lucide;
+        const { useState, useEffect, useMemo } = React;
 
         const MealPlannerApp = () => {
           const [meals, setMeals] = useState([]);
@@ -36,79 +36,122 @@
             {
               id: 1,
               name: "Chicken Stir Fry",
+              url: "",
+              instructions: "1. Heat oil in a large pan or wok over high heat.\n2. Add chicken and cook until golden brown, about 5-7 minutes.\n3. Add vegetables and stir fry for 3-4 minutes.\n4. Add soy sauce and cook for another 2 minutes.\n5. Serve hot over rice.",
               ingredients: [
-                { name: "Chicken breast", amount: 500, unit: "g", cost: 6.99 },
-                { name: "Mixed vegetables", amount: 300, unit: "g", cost: 3.49 },
-                { name: "Soy sauce", amount: 2, unit: "tbsp", cost: 0.30 },
-                { name: "Rice", amount: 200, unit: "g", cost: 0.80 }
+                { name: "Chicken breast", amount: 500, unit: "g" },
+                { name: "Mixed vegetables", amount: 300, unit: "g" },
+                { name: "Soy sauce", amount: 2, unit: "tbsp" },
+                { name: "Rice", amount: 200, unit: "g" },
+                { name: "Vegetable oil", amount: 2, unit: "tbsp" }
               ],
               servings: 4,
               calories: 450,
               protein: 35,
               carbs: 48,
-              fat: 12
+              fat: 12,
+              prepTime: "10 min",
+              cookTime: "15 min"
             },
             {
               id: 2,
               name: "Spaghetti Bolognese",
+              url: "",
+              instructions: "1. Cook spaghetti according to package directions.\n2. In a large pan, brown the ground beef over medium-high heat.\n3. Add diced onion and garlic, cook until softened.\n4. Pour in tomato sauce and simmer for 15 minutes.\n5. Season with salt, pepper, and Italian herbs.\n6. Serve sauce over cooked spaghetti.",
               ingredients: [
-                { name: "Ground beef", amount: 400, unit: "g", cost: 5.99 },
-                { name: "Spaghetti", amount: 400, unit: "g", cost: 1.29 },
-                { name: "Tomato sauce", amount: 400, unit: "g", cost: 1.99 },
-                { name: "Onion", amount: 1, unit: "piece", cost: 0.50 },
-                { name: "Garlic", amount: 2, unit: "cloves", cost: 0.20 }
+                { name: "Ground beef", amount: 400, unit: "g" },
+                { name: "Spaghetti", amount: 400, unit: "g" },
+                { name: "Tomato sauce", amount: 400, unit: "g" },
+                { name: "Onion", amount: 1, unit: "piece" },
+                { name: "Garlic", amount: 2, unit: "cloves" }
               ],
               servings: 4,
               calories: 520,
               protein: 28,
               carbs: 65,
-              fat: 16
+              fat: 16,
+              prepTime: "10 min",
+              cookTime: "25 min"
             },
             {
               id: 3,
               name: "Caesar Salad",
+              url: "",
+              instructions: "1. Grill or pan-fry chicken breast until cooked through.\n2. Let chicken rest, then slice into strips.\n3. Wash and chop romaine lettuce.\n4. In a large bowl, toss lettuce with Caesar dressing.\n5. Add croutons and grated Parmesan cheese.\n6. Top with sliced chicken and serve immediately.",
               ingredients: [
-                { name: "Romaine lettuce", amount: 2, unit: "heads", cost: 2.99 },
-                { name: "Caesar dressing", amount: 100, unit: "ml", cost: 2.49 },
-                { name: "Parmesan cheese", amount: 50, unit: "g", cost: 1.99 },
-                { name: "Croutons", amount: 100, unit: "g", cost: 1.49 },
-                { name: "Chicken breast", amount: 300, unit: "g", cost: 4.19 }
+                { name: "Romaine lettuce", amount: 2, unit: "heads" },
+                { name: "Caesar dressing", amount: 100, unit: "ml" },
+                { name: "Parmesan cheese", amount: 50, unit: "g" },
+                { name: "Croutons", amount: 100, unit: "g" },
+                { name: "Chicken breast", amount: 300, unit: "g" }
               ],
               servings: 2,
               calories: 380,
               protein: 32,
               carbs: 18,
-              fat: 22
+              fat: 22,
+              prepTime: "15 min",
+              cookTime: "10 min"
             },
             {
               id: 4,
               name: "Vegetable Curry",
+              url: "",
+              instructions: "1. Cook rice according to package directions.\n2. Heat oil in a large pot over medium heat.\n3. Add curry paste and cook for 1 minute until fragrant.\n4. Add mixed vegetables and stir to coat.\n5. Pour in coconut milk and bring to a simmer.\n6. Cook for 15-20 minutes until vegetables are tender.\n7. Serve over rice.",
               ingredients: [
-                { name: "Mixed vegetables", amount: 500, unit: "g", cost: 4.99 },
-                { name: "Coconut milk", amount: 400, unit: "ml", cost: 1.99 },
-                { name: "Curry paste", amount: 3, unit: "tbsp", cost: 1.20 },
-                { name: "Rice", amount: 300, unit: "g", cost: 1.20 }
+                { name: "Mixed vegetables", amount: 500, unit: "g" },
+                { name: "Coconut milk", amount: 400, unit: "ml" },
+                { name: "Curry paste", amount: 3, unit: "tbsp" },
+                { name: "Rice", amount: 300, unit: "g" }
               ],
               servings: 4,
               calories: 420,
               protein: 8,
               carbs: 58,
-              fat: 18
+              fat: 18,
+              prepTime: "10 min",
+              cookTime: "20 min"
+            },
+            {
+              id: 5,
+              name: "Scrambled Eggs & Toast",
+              url: "",
+              instructions: "1. Crack eggs into a bowl and whisk with milk.\n2. Heat butter in a non-stick pan over medium-low heat.\n3. Pour in egg mixture and let sit for 20 seconds.\n4. Gently stir with a spatula, creating large curds.\n5. Remove from heat when still slightly wet.\n6. Toast bread and butter it.\n7. Serve eggs on toast.",
+              ingredients: [
+                { name: "Eggs", amount: 6, unit: "piece" },
+                { name: "Bread", amount: 4, unit: "slices" },
+                { name: "Butter", amount: 20, unit: "g" },
+                { name: "Milk", amount: 50, unit: "ml" }
+              ],
+              servings: 2,
+              calories: 380,
+              protein: 24,
+              carbs: 32,
+              fat: 18,
+              prepTime: "5 min",
+              cookTime: "10 min"
             }
           ]);
           
           const [customRecipe, setCustomRecipe] = useState({
             name: '',
-            ingredients: [{ name: '', amount: '', unit: 'g', cost: '' }],
+            url: '',
+            instructions: '',
+            ingredients: [{ name: '', amount: '', unit: 'g' }],
             servings: 1,
             calories: 0,
             protein: 0,
             carbs: 0,
-            fat: 0
+            fat: 0,
+            prepTime: '',
+            cookTime: ''
           });
           
           const [showAddRecipe, setShowAddRecipe] = useState(false);
+          const [selectedRecipe, setSelectedRecipe] = useState(null);
           const [activeTab, setActiveTab] = useState('planner');
+          const [pantryItems, setPantryItems] = useState([]);
+          const [newPantryItem, setNewPantryItem] = useState('');
           
           const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
           const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
@@ -116,8 +159,10 @@
           useEffect(() => {
             const savedMeals = localStorage.getItem('mealPlans');
             const savedRecipes = localStorage.getItem('customRecipes');
+            const savedPantry = localStorage.getItem('pantryItems');
             if (savedMeals) setMeals(JSON.parse(savedMeals));
             if (savedRecipes) setRecipes(JSON.parse(savedRecipes));
+            if (savedPantry) setPantryItems(JSON.parse(savedPantry));
           }, []);
 
           const saveMeals = (newMeals) => {
@@ -130,14 +175,13 @@
             localStorage.setItem('customRecipes', JSON.stringify(newRecipes));
           };
 
+          const savePantry = (newPantry) => {
+            setPantryItems(newPantry);
+            localStorage.setItem('pantryItems', JSON.stringify(newPantry));
+          };
+
           const addMeal = (day, mealType, recipe) => {
-            const newMeal = {
-              id: Date.now(),
-              day,
-              mealType,
-              recipe
-            };
-            saveMeals([...meals, newMeal]);
+            saveMeals([...meals, { id: Date.now(), day, mealType, recipe }]);
           };
 
           const removeMeal = (id) => {
@@ -147,7 +191,7 @@
           const addIngredientToCustomRecipe = () => {
             setCustomRecipe({
               ...customRecipe,
-              ingredients: [...customRecipe.ingredients, { name: '', amount: '', unit: 'g', cost: '' }]
+              ingredients: [...customRecipe.ingredients, { name: '', amount: '', unit: 'g' }]
             });
           };
 
@@ -158,13 +202,12 @@
           };
 
           const removeIngredientFromCustomRecipe = (index) => {
-            const newIngredients = customRecipe.ingredients.filter((_, i) => i !== index);
-            setCustomRecipe({ ...customRecipe, ingredients: newIngredients });
+            setCustomRecipe({ ...customRecipe, ingredients: customRecipe.ingredients.filter((_, i) => i !== index) });
           };
 
           const saveCustomRecipe = () => {
-            if (!customRecipe.name || customRecipe.ingredients.some(i => !i.name || !i.amount || !i.cost)) {
-              alert('Please fill in all recipe fields');
+            if (!customRecipe.name || customRecipe.ingredients.some(i => !i.name || !i.amount)) {
+              alert('Please fill in recipe name and all ingredients');
               return;
             }
             
@@ -173,27 +216,39 @@
               ...customRecipe,
               ingredients: customRecipe.ingredients.map(ing => ({
                 ...ing,
-                amount: parseFloat(ing.amount),
-                cost: parseFloat(ing.cost)
+                amount: parseFloat(ing.amount)
               })),
-              servings: parseInt(customRecipe.servings),
-              calories: parseInt(customRecipe.calories),
-              protein: parseInt(customRecipe.protein),
-              carbs: parseInt(customRecipe.carbs),
-              fat: parseInt(customRecipe.fat)
+              servings: parseInt(customRecipe.servings) || 1,
+              calories: parseInt(customRecipe.calories) || 0,
+              protein: parseInt(customRecipe.protein) || 0,
+              carbs: parseInt(customRecipe.carbs) || 0,
+              fat: parseInt(customRecipe.fat) || 0
             };
             
             saveRecipes([...recipes, newRecipe]);
             setCustomRecipe({
               name: '',
-              ingredients: [{ name: '', amount: '', unit: 'g', cost: '' }],
+              url: '',
+              instructions: '',
+              ingredients: [{ name: '', amount: '', unit: 'g' }],
               servings: 1,
               calories: 0,
               protein: 0,
               carbs: 0,
-              fat: 0
+              fat: 0,
+              prepTime: '',
+              cookTime: ''
             });
             setShowAddRecipe(false);
+          };
+
+          const deleteRecipe = (recipeId) => {
+            if (confirm('Are you sure you want to delete this recipe?')) {
+              saveRecipes(recipes.filter(r => r.id !== recipeId));
+              if (selectedRecipe?.id === recipeId) {
+                setSelectedRecipe(null);
+              }
+            }
           };
 
           const generateGroceryList = () => {
@@ -203,45 +258,71 @@
               meal.recipe.ingredients.forEach(ingredient => {
                 if (groceryMap[ingredient.name]) {
                   groceryMap[ingredient.name].amount += ingredient.amount;
-                  groceryMap[ingredient.name].cost += ingredient.cost;
                 } else {
                   groceryMap[ingredient.name] = {
                     amount: ingredient.amount,
-                    unit: ingredient.unit,
-                    cost: ingredient.cost
+                    unit: ingredient.unit
                   };
                 }
               });
             });
             
-            return Object.entries(groceryMap).map(([name, data]) => ({
-              name,
-              ...data
-            }));
-          };
-
-          const calculateTotalCost = () => {
-            return generateGroceryList().reduce((sum, item) => sum + item.cost, 0);
+            return Object.entries(groceryMap).map(([name, data]) => ({ name, ...data }));
           };
 
           const calculateNutrition = () => {
             const totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
-            
             meals.forEach(meal => {
               totals.calories += meal.recipe.calories;
               totals.protein += meal.recipe.protein;
               totals.carbs += meal.recipe.carbs;
               totals.fat += meal.recipe.fat;
             });
-            
             return totals;
           };
 
+          const findMatchingRecipes = () => {
+            const pantrySet = new Set(pantryItems.map(item => item.toLowerCase().trim()));
+            
+            return recipes.map(recipe => {
+              const recipeIngredients = recipe.ingredients.map(ing => ing.name.toLowerCase());
+              const matchingIngredients = recipeIngredients.filter(ing => pantrySet.has(ing));
+              const missingIngredients = recipe.ingredients.filter(
+                ing => !pantrySet.has(ing.name.toLowerCase())
+              );
+              
+              const matchPercentage = (matchingIngredients.length / recipeIngredients.length) * 100;
+              
+              return {
+                recipe,
+                matchPercentage,
+                matchingCount: matchingIngredients.length,
+                missingIngredients,
+                missingCount: missingIngredients.length
+              };
+            })
+            .filter(result => result.matchPercentage > 0)
+            .sort((a, b) => {
+              if (a.missingCount !== b.missingCount) {
+                return a.missingCount - b.missingCount;
+              }
+              return b.matchPercentage - a.matchPercentage;
+            });
+          };
+
+          const addPantryItem = () => {
+            if (newPantryItem.trim()) {
+              savePantry([...pantryItems, newPantryItem.trim()]);
+              setNewPantryItem('');
+            }
+          };
+
+          const removePantryItem = (index) => {
+            savePantry(pantryItems.filter((_, i) => i !== index));
+          };
+
           const exportData = () => {
-            const data = {
-              meals,
-              recipes
-            };
+            const data = { meals, recipes, pantryItems };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -259,6 +340,7 @@
                   const data = JSON.parse(e.target.result);
                   if (data.meals) saveMeals(data.meals);
                   if (data.recipes) saveRecipes(data.recipes);
+                  if (data.pantryItems) savePantry(data.pantryItems);
                   alert('Data imported successfully!');
                 } catch (error) {
                   alert('Error importing data. Please check the file format.');
@@ -269,57 +351,49 @@
           };
 
           const groceryList = generateGroceryList();
-          const totalCost = calculateTotalCost();
           const nutrition = calculateNutrition();
+          const matchingRecipes = useMemo(() => findMatchingRecipes(), [pantryItems, recipes]);
 
           return (
             <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4">
               <div className="max-w-7xl mx-auto">
-                {/* Header */}
                 <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-                  <h1 className="text-4xl font-bold text-gray-800 mb-2">🍽️ Meal Planner + Grocery Optimizer</h1>
-                  <p className="text-gray-600">Plan your week, save time and money on food</p>
+                  <h1 className="text-4xl font-bold text-gray-800 mb-2">🍽️ Meal Planner + Digital Cookbook</h1>
+                  <p className="text-gray-600">Plan your week and organize your favorite recipes</p>
                   
                   <div className="flex gap-2 mt-4">
-                    <button
-                      onClick={exportData}
-                      className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-                    >
-                      <Download size={18} />
-                      Export Data
+                    <button onClick={exportData} className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
+                      ↓ Export Data
                     </button>
                     <label className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition cursor-pointer">
-                      <Upload size={18} />
-                      Import Data
+                      ↑ Import Data
                       <input type="file" accept=".json" onChange={importData} className="hidden" />
                     </label>
                   </div>
                 </div>
 
-                {/* Navigation Tabs */}
                 <div className="bg-white rounded-lg shadow-lg mb-6">
-                  <div className="flex border-b">
-                    {['planner', 'grocery', 'recipes', 'nutrition'].map(tab => (
+                  <div className="flex flex-wrap border-b">
+                    {[
+                      { key: 'planner', label: '📅 Planner' },
+                      { key: 'cookbook', label: '📖 Cookbook' },
+                      { key: 'grocery', label: '🛒 Grocery' },
+                      { key: 'pantry', label: '💡 Smart Match' },
+                      { key: 'nutrition', label: '📊 Nutrition' }
+                    ].map(({ key, label }) => (
                       <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`flex-1 px-6 py-4 font-semibold transition ${
-                          activeTab === tab
-                            ? 'bg-blue-500 text-white'
-                            : 'text-gray-600 hover:bg-gray-100'
+                        key={key}
+                        onClick={() => setActiveTab(key)}
+                        className={`flex-1 px-4 py-4 font-semibold transition min-w-[120px] ${
+                          activeTab === key ? 'bg-blue-500 text-white' : 'text-gray-600 hover:bg-gray-100'
                         }`}
                       >
-                        {tab === 'planner' && React.createElement(Calendar, { className: "inline mr-2", size: 20 })}
-                        {tab === 'grocery' && React.createElement(ShoppingCart, { className: "inline mr-2", size: 20 })}
-                        {tab === 'recipes' && React.createElement(Plus, { className: "inline mr-2", size: 20 })}
-                        {tab === 'nutrition' && React.createElement(TrendingUp, { className: "inline mr-2", size: 20 })}
-                        {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                        {label}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Meal Planner Tab */}
                 {activeTab === 'planner' && (
                   <div className="bg-white rounded-lg shadow-lg p-6">
                     <h2 className="text-2xl font-bold text-gray-800 mb-4">Weekly Meal Plan</h2>
@@ -347,9 +421,9 @@
                                         <div className="text-xs text-gray-600">{meal.recipe.calories} cal</div>
                                         <button
                                           onClick={() => removeMeal(meal.id)}
-                                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition"
+                                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition text-red-500 font-bold text-lg"
                                         >
-                                          {React.createElement(Trash2, { size: 14, className: "text-red-500" })}
+                                          ×
                                         </button>
                                       </div>
                                     ) : (
@@ -379,50 +453,18 @@
                   </div>
                 )}
 
-                {/* Grocery List Tab */}
-                {activeTab === 'grocery' && (
+                {activeTab === 'cookbook' && (
                   <div className="bg-white rounded-lg shadow-lg p-6">
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-2xl font-bold text-gray-800">Grocery List</h2>
-                      <div className="flex items-center gap-2 text-2xl font-bold text-green-600">
-                        {React.createElement(DollarSign, { size: 28 })}
-                        {totalCost.toFixed(2)}
-                      </div>
-                    </div>
-                    
-                    {groceryList.length === 0 ? (
-                      <p className="text-gray-500 text-center py-8">No meals planned yet. Add meals to generate your grocery list!</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {groceryList.map((item, index) => (
-                          <div key={index} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
-                            <div>
-                              <span className="font-semibold">{item.name}</span>
-                              <span className="text-gray-600 ml-2">
-                                {item.amount} {item.unit}
-                              </span>
-                            </div>
-                            <div className="text-green-600 font-semibold">
-                              ${item.cost.toFixed(2)}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Recipes Tab */}
-                {activeTab === 'recipes' && (
-                  <div className="bg-white rounded-lg shadow-lg p-6">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-2xl font-bold text-gray-800">Recipe Collection</h2>
+                      <h2 className="text-2xl font-bold text-gray-800">Digital Cookbook</h2>
                       <button
-                        onClick={() => setShowAddRecipe(!showAddRecipe)}
+                        onClick={() => {
+                          setShowAddRecipe(!showAddRecipe);
+                          setSelectedRecipe(null);
+                        }}
                         className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
                       >
-                        {React.createElement(Plus, { size: 20 })}
-                        Add Recipe
+                        + Add Recipe
                       </button>
                     </div>
 
@@ -432,152 +474,318 @@
                         
                         <input
                           type="text"
-                          placeholder="Recipe name"
+                          placeholder="Recipe name *"
                           value={customRecipe.name}
                           onChange={(e) => setCustomRecipe({ ...customRecipe, name: e.target.value })}
                           className="w-full p-2 border rounded mb-3"
                         />
 
+                        <input
+                          type="url"
+                          placeholder="Recipe URL (optional - link to your Excel or website)"
+                          value={customRecipe.url}
+                          onChange={(e) => setCustomRecipe({ ...customRecipe, url: e.target.value })}
+                          className="w-full p-2 border rounded mb-3"
+                        />
+
                         <div className="grid grid-cols-2 gap-3 mb-3">
-                          <input
-                            type="number"
-                            placeholder="Servings"
-                            value={customRecipe.servings}
-                            onChange={(e) => setCustomRecipe({ ...customRecipe, servings: e.target.value })}
-                            className="p-2 border rounded"
-                          />
-                          <input
-                            type="number"
-                            placeholder="Calories"
-                            value={customRecipe.calories}
-                            onChange={(e) => setCustomRecipe({ ...customRecipe, calories: e.target.value })}
-                            className="p-2 border rounded"
-                          />
-                          <input
-                            type="number"
-                            placeholder="Protein (g)"
-                            value={customRecipe.protein}
-                            onChange={(e) => setCustomRecipe({ ...customRecipe, protein: e.target.value })}
-                            className="p-2 border rounded"
-                          />
-                          <input
-                            type="number"
-                            placeholder="Carbs (g)"
-                            value={customRecipe.carbs}
-                            onChange={(e) => setCustomRecipe({ ...customRecipe, carbs: e.target.value })}
-                            className="p-2 border rounded"
-                          />
-                          <input
-                            type="number"
-                            placeholder="Fat (g)"
-                            value={customRecipe.fat}
-                            onChange={(e) => setCustomRecipe({ ...customRecipe, fat: e.target.value })}
-                            className="p-2 border rounded"
-                          />
+                          <input type="number" placeholder="Servings" value={customRecipe.servings} onChange={(e) => setCustomRecipe({ ...customRecipe, servings: e.target.value })} className="p-2 border rounded" />
+                          <input type="text" placeholder="Prep Time (e.g., 10 min)" value={customRecipe.prepTime} onChange={(e) => setCustomRecipe({ ...customRecipe, prepTime: e.target.value })} className="p-2 border rounded" />
+                          <input type="text" placeholder="Cook Time (e.g., 20 min)" value={customRecipe.cookTime} onChange={(e) => setCustomRecipe({ ...customRecipe, cookTime: e.target.value })} className="p-2 border rounded" />
+                          <input type="number" placeholder="Calories (optional)" value={customRecipe.calories} onChange={(e) => setCustomRecipe({ ...customRecipe, calories: e.target.value })} className="p-2 border rounded" />
+                          <input type="number" placeholder="Protein (g)" value={customRecipe.protein} onChange={(e) => setCustomRecipe({ ...customRecipe, protein: e.target.value })} className="p-2 border rounded" />
+                          <input type="number" placeholder="Carbs (g)" value={customRecipe.carbs} onChange={(e) => setCustomRecipe({ ...customRecipe, carbs: e.target.value })} className="p-2 border rounded" />
+                          <input type="number" placeholder="Fat (g)" value={customRecipe.fat} onChange={(e) => setCustomRecipe({ ...customRecipe, fat: e.target.value })} className="p-2 border rounded" />
                         </div>
 
                         <div className="mb-3">
-                          <label className="font-semibold block mb-2">Ingredients:</label>
+                          <label className="font-semibold block mb-2">Ingredients: *</label>
                           {customRecipe.ingredients.map((ingredient, index) => (
                             <div key={index} className="flex gap-2 mb-2">
-                              <input
-                                type="text"
-                                placeholder="Ingredient name"
-                                value={ingredient.name}
-                                onChange={(e) => updateCustomRecipeIngredient(index, 'name', e.target.value)}
-                                className="flex-1 p-2 border rounded"
-                              />
-                              <input
-                                type="number"
-                                placeholder="Amount"
-                                value={ingredient.amount}
-                                onChange={(e) => updateCustomRecipeIngredient(index, 'amount', e.target.value)}
-                                className="w-24 p-2 border rounded"
-                              />
-                              <select
-                                value={ingredient.unit}
-                                onChange={(e) => updateCustomRecipeIngredient(index, 'unit', e.target.value)}
-                                className="w-24 p-2 border rounded"
-                              >
+                              <input type="text" placeholder="Ingredient name" value={ingredient.name} onChange={(e) => updateCustomRecipeIngredient(index, 'name', e.target.value)} className="flex-1 p-2 border rounded" />
+                              <input type="number" placeholder="Amount" value={ingredient.amount} onChange={(e) => updateCustomRecipeIngredient(index, 'amount', e.target.value)} className="w-24 p-2 border rounded" />
+                              <select value={ingredient.unit} onChange={(e) => updateCustomRecipeIngredient(index, 'unit', e.target.value)} className="w-24 p-2 border rounded">
                                 <option value="g">g</option>
                                 <option value="ml">ml</option>
                                 <option value="piece">piece</option>
                                 <option value="tbsp">tbsp</option>
                                 <option value="tsp">tsp</option>
                                 <option value="cup">cup</option>
+                                <option value="oz">oz</option>
+                                <option value="lb">lb</option>
                               </select>
-                              <input
-                                type="number"
-                                step="0.01"
-                                placeholder="Cost"
-                                value={ingredient.cost}
-                                onChange={(e) => updateCustomRecipeIngredient(index, 'cost', e.target.value)}
-                                className="w-24 p-2 border rounded"
-                              />
-                              <button
-                                onClick={() => removeIngredientFromCustomRecipe(index)}
-                                className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                              >
-                                {React.createElement(Trash2, { size: 16 })}
-                              </button>
+                              <button onClick={() => removeIngredientFromCustomRecipe(index)} className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600">×</button>
                             </div>
                           ))}
-                          <button
-                            onClick={addIngredientToCustomRecipe}
-                            className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                          >
-                            + Add Ingredient
-                          </button>
+                          <button onClick={addIngredientToCustomRecipe} className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">+ Add Ingredient</button>
+                        </div>
+
+                        <div className="mb-3">
+                          <label className="font-semibold block mb-2">Cooking Instructions:</label>
+                          <textarea
+                            placeholder="Enter step-by-step instructions (one step per line)"
+                            value={customRecipe.instructions}
+                            onChange={(e) => setCustomRecipe({ ...customRecipe, instructions: e.target.value })}
+                            className="w-full p-3 border rounded min-h-[150px]"
+                          />
                         </div>
 
                         <div className="flex gap-2">
-                          <button
-                            onClick={saveCustomRecipe}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-                          >
-                            {React.createElement(Save, { size: 18 })}
-                            Save Recipe
-                          </button>
-                          <button
-                            onClick={() => setShowAddRecipe(false)}
-                            className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-                          >
-                            Cancel
-                          </button>
+                          <button onClick={saveCustomRecipe} className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">💾 Save Recipe</button>
+                          <button onClick={() => setShowAddRecipe(false)} className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
                         </div>
                       </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {recipes.map(recipe => (
-                        <div key={recipe.id} className="border rounded-lg p-4 hover:shadow-lg transition">
-                          <h3 className="font-bold text-lg mb-2">{recipe.name}</h3>
-                          <div className="text-sm text-gray-600 mb-2">
-                            Servings: {recipe.servings} | Cost: ${recipe.ingredients.reduce((sum, ing) => sum + ing.cost, 0).toFixed(2)}
+                    {selectedRecipe ? (
+                      <div className="border rounded-lg p-6 bg-white">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="text-3xl font-bold mb-2">{selectedRecipe.name}</h3>
+                            {selectedRecipe.url && (
+                              <a href={selectedRecipe.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
+                                🔗 View Original Recipe
+                              </a>
+                            )}
                           </div>
-                          <div className="text-sm mb-3">
-                            <span className="inline-block bg-blue-100 px-2 py-1 rounded mr-2">{recipe.calories} cal</span>
-                            <span className="inline-block bg-green-100 px-2 py-1 rounded mr-2">P: {recipe.protein}g</span>
-                            <span className="inline-block bg-yellow-100 px-2 py-1 rounded mr-2">C: {recipe.carbs}g</span>
-                            <span className="inline-block bg-red-100 px-2 py-1 rounded">F: {recipe.fat}g</span>
-                          </div>
-                          <details className="text-sm">
-                            <summary className="cursor-pointer font-semibold text-blue-600">Ingredients</summary>
-                            <ul className="mt-2 space-y-1">
-                              {recipe.ingredients.map((ing, index) => (
-                                <li key={index} className="pl-4">
-                                  • {ing.name}: {ing.amount} {ing.unit} (${ing.cost.toFixed(2)})
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
+                          <button
+                            onClick={() => setSelectedRecipe(null)}
+                            className="text-gray-500 hover:text-gray-700 text-2xl"
+                          >
+                            ×
+                          </button>
                         </div>
-                      ))}
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-center">
+                          {selectedRecipe.servings && (
+                            <div className="bg-gray-50 p-3 rounded">
+                              <div className="text-2xl font-bold text-gray-700">{selectedRecipe.servings}</div>
+                              <div className="text-sm text-gray-600">Servings</div>
+                            </div>
+                          )}
+                          {selectedRecipe.prepTime && (
+                            <div className="bg-gray-50 p-3 rounded">
+                              <div className="text-lg font-bold text-gray-700">{selectedRecipe.prepTime}</div>
+                              <div className="text-sm text-gray-600">Prep Time</div>
+                            </div>
+                          )}
+                          {selectedRecipe.cookTime && (
+                            <div className="bg-gray-50 p-3 rounded">
+                              <div className="text-lg font-bold text-gray-700">{selectedRecipe.cookTime}</div>
+                              <div className="text-sm text-gray-600">Cook Time</div>
+                            </div>
+                          )}
+                          {selectedRecipe.calories > 0 && (
+                            <div className="bg-blue-50 p-3 rounded">
+                              <div className="text-2xl font-bold text-blue-700">{selectedRecipe.calories}</div>
+                              <div className="text-sm text-gray-600">Calories</div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mb-6">
+                          <h4 className="font-bold text-xl mb-3">Ingredients</h4>
+                          <ul className="space-y-2">
+                            {selectedRecipe.ingredients.map((ing, index) => (
+                              <li key={index} className="flex items-start">
+                                <span className="text-blue-500 mr-2">▪</span>
+                                <span>{ing.amount} {ing.unit} {ing.name}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {selectedRecipe.instructions && (
+                          <div className="mb-6">
+                            <h4 className="font-bold text-xl mb-3">Instructions</h4>
+                            <div className="bg-gray-50 p-4 rounded instructions-text">
+                              {selectedRecipe.instructions}
+                            </div>
+                          </div>
+                        )}
+
+                        {(selectedRecipe.protein > 0 || selectedRecipe.carbs > 0 || selectedRecipe.fat > 0) && (
+                          <div>
+                            <h4 className="font-bold text-xl mb-3">Nutrition Info</h4>
+                            <div className="flex gap-3">
+                              {selectedRecipe.protein > 0 && <span className="bg-green-100 px-3 py-1 rounded">Protein: {selectedRecipe.protein}g</span>}
+                              {selectedRecipe.carbs > 0 && <span className="bg-yellow-100 px-3 py-1 rounded">Carbs: {selectedRecipe.carbs}g</span>}
+                              {selectedRecipe.fat > 0 && <span className="bg-red-100 px-3 py-1 rounded">Fat: {selectedRecipe.fat}g</span>}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-6 pt-4 border-t">
+                          <button
+                            onClick={() => deleteRecipe(selectedRecipe.id)}
+                            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                          >
+                            🗑️ Delete Recipe
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {recipes.map(recipe => (
+                          <div
+                            key={recipe.id}
+                            onClick={() => setSelectedRecipe(recipe)}
+                            className="border rounded-lg p-4 hover:shadow-lg transition cursor-pointer"
+                          >
+                            <h3 className="font-bold text-lg mb-2">{recipe.name}</h3>
+                            {recipe.url && (
+                              <div className="text-xs text-blue-600 mb-2 truncate">🔗 Has link</div>
+                            )}
+                            <div className="text-sm text-gray-600 mb-2">
+                              {recipe.servings && `${recipe.servings} servings`}
+                              {recipe.prepTime && ` • ${recipe.prepTime}`}
+                              {recipe.cookTime && ` • ${recipe.cookTime}`}
+                            </div>
+                            <div className="text-sm mb-3">
+                              {recipe.calories > 0 && <span className="inline-block bg-blue-100 px-2 py-1 rounded mr-2 text-xs">{recipe.calories} cal</span>}
+                              {recipe.protein > 0 && <span className="inline-block bg-green-100 px-2 py-1 rounded mr-2 text-xs">P: {recipe.protein}g</span>}
+                              {recipe.carbs > 0 && <span className="inline-block bg-yellow-100 px-2 py-1 rounded mr-2 text-xs">C: {recipe.carbs}g</span>}
+                              {recipe.fat > 0 && <span className="inline-block bg-red-100 px-2 py-1 rounded text-xs">F: {recipe.fat}g</span>}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {recipe.ingredients.length} ingredients
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'grocery' && (
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">Grocery List</h2>
+                    
+                    {groceryList.length === 0 ? (
+                      <p className="text-gray-500 text-center py-8">No meals planned yet. Add meals to generate your grocery list!</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {groceryList.map((item, index) => (
+                          <div key={index} className="border rounded-lg p-4 flex justify-between items-center">
+                            <div>
+                              <span className="font-semibold text-lg">{item.name}</span>
+                              <span className="text-gray-600 ml-3">{item.amount} {item.unit}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'pantry' && (
+                  <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-4">Smart Recipe Matcher</h2>
+                    
+                    <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                      <h3 className="font-bold mb-3">What do you have at home?</h3>
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          type="text"
+                          placeholder="Enter ingredient (e.g., Chicken breast)"
+                          value={newPantryItem}
+                          onChange={(e) => setNewPantryItem(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && addPantryItem()}
+                          className="flex-1 p-2 border rounded"
+                        />
+                        <button
+                          onClick={addPantryItem}
+                          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                        >
+                          + Add
+                        </button>
+                      </div>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {pantryItems.map((item, index) => (
+                          <div key={index} className="flex items-center gap-2 px-3 py-1 bg-white border rounded-full">
+                            <span>{item}</span>
+                            <button
+                              onClick={() => removePantryItem(index)}
+                              className="text-red-500 hover:text-red-700 font-bold"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="font-bold text-lg mb-3">
+                        Recipe Suggestions ({matchingRecipes.length} found)
+                      </h3>
+                      
+                      {pantryItems.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">Add ingredients above to find matching recipes!</p>
+                      ) : matchingRecipes.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8">No matching recipes found. Try adding more ingredients!</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {matchingRecipes.map(({ recipe, matchPercentage, matchingCount, missingIngredients, missingCount }) => (
+                            <div key={recipe.id} className="border rounded-lg p-4 hover:shadow-lg transition">
+                              <div className="flex justify-between items-start mb-3">
+                                <div>
+                                  <h4 className="font-bold text-lg">{recipe.name}</h4>
+                                  <div className="text-sm text-gray-600">
+                                    {matchingCount}/{recipe.ingredients.length} ingredients you have
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-2xl font-bold text-green-600">
+                                    {Math.round(matchPercentage)}%
+                                  </div>
+                                  <div className="text-xs text-gray-500">match</div>
+                                </div>
+                              </div>
+                              
+                              <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                                <div className="bg-green-500 h-2 rounded-full" style={{ width: `${matchPercentage}%` }}></div>
+                              </div>
+                              
+                              {missingCount > 0 && (
+                                <div className="bg-yellow-50 p-3 rounded">
+                                  <div className="font-semibold text-sm mb-2">
+                                    Need to buy ({missingCount} item{missingCount > 1 ? 's' : ''}):
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {missingIngredients.map((ing, index) => (
+                                      <span key={index} className="text-xs bg-white px-2 py-1 rounded border">
+                                        {ing.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {missingCount === 0 && (
+                                <div className="bg-green-50 p-3 rounded text-green-700 font-semibold text-center">
+                                  ✓ You have everything to make this recipe!
+                                </div>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  setSelectedRecipe(recipe);
+                                  setActiveTab('cookbook');
+                                }}
+                                className="mt-3 w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                              >
+                                View Recipe
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
 
-                {/* Nutrition Tab */}
                 {activeTab === 'nutrition' && (
                   <div className="bg-white rounded-lg shadow-lg p-6">
                     <h2 className="text-2xl font-bold text-gray-800 mb-4">Weekly Nutrition Overview</h2>
@@ -626,15 +834,6 @@
                             </div>
                           </div>
                         </div>
-
-                        <div className="bg-gray-50 p-4 rounded-lg">
-                          <h3 className="font-bold mb-3">Cost Efficiency</h3>
-                          <div className="text-2xl font-bold text-green-600 mb-2">${totalCost.toFixed(2)}/week</div>
-                          <div className="text-gray-600">Average ${(totalCost / 7).toFixed(2)}/day</div>
-                          <div className="text-sm text-gray-500 mt-2">
-                            Cost per calorie: ${((totalCost / nutrition.calories) * 100).toFixed(2)} per 100 cal
-                          </div>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -644,12 +843,8 @@
           );
         };
 
-        // Initialize lucide icons
-        lucide.createIcons();
-        
-        // Render the app
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(React.createElement(MealPlannerApp));
+        root.render(<MealPlannerApp />);
     </script>
 </body>
 </html>
