@@ -32,7 +32,7 @@
         const { useState, useEffect, useMemo } = React;
 
         const MealPlannerApp = () => {
-          const APP_VERSION = '1.7.0';
+          const APP_VERSION = '1.8.0';
           
           const defaultRecipes = []; // Start with empty recipes - user will import JSON
           
@@ -276,10 +276,13 @@
           const calculateNutrition = () => {
             const totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
             meals.forEach(meal => {
-              totals.calories += meal.recipe.calories;
-              totals.protein += meal.recipe.protein;
-              totals.carbs += meal.recipe.carbs;
-              totals.fat += meal.recipe.fat;
+              // Skip custom meals (they don't have nutrition data)
+              if (meal.isCustom) return;
+              
+              totals.calories += meal.recipe.calories || 0;
+              totals.protein += meal.recipe.protein || 0;
+              totals.carbs += meal.recipe.carbs || 0;
+              totals.fat += meal.recipe.fat || 0;
             });
             return totals;
           };
@@ -368,7 +371,7 @@
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
-                        v1.7.0
+                        v1.8.0
                       </div>
                     </div>
                   </div>
