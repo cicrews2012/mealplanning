@@ -32,7 +32,7 @@
         const { useState, useEffect, useMemo } = React;
 
         const MealPlannerApp = () => {
-          const APP_VERSION = '1.4.0';
+          const APP_VERSION = '1.5.0';
           
           const defaultRecipes = [
             {
@@ -416,18 +416,77 @@
             
             meals.forEach(meal => {
               meal.recipe.ingredients.forEach(ingredient => {
-                if (groceryMap[ingredient.name]) {
-                  groceryMap[ingredient.name].amount += ingredient.amount;
+                // Normalize ingredient name for smart grouping
+                const normalizedName = ingredient.name.toLowerCase().trim();
+                
+                // Create a base key by removing common variations
+                let baseKey = normalizedName
+                  .replace(/\s*\(.*?\)\s*/g, '') // Remove parentheses content
+                  .replace(/^(boneless|skinless|bone-in|skin-on|fresh|frozen|raw|cooked|large|small|medium)\s+/gi, '') // Remove common prefixes
+                  .replace(/\s+(boneless|skinless|bone-in|skin-on|fresh|frozen|raw|cooked|large|small|medium)$/gi, '') // Remove common suffixes
+                  .replace(/\s+/g, ' ') // Normalize spaces
+                  .trim();
+                
+                // Find if we already have a similar ingredient
+                let existingKey = null;
+                for (let key in groceryMap) {
+                  if (key.includes(baseKey) || baseKey.includes(key)) {
+                    existingKey = key;
+                    break;
+                  }
+                }
+                
+                if (existingKey) {
+                  // Add to existing ingredient
+                  const existing = groceryMap[existingKey];
+                  
+                  // Only combine if units are the same or compatible
+                  if (existing.unit === ingredient.unit) {
+                    existing.amount += ingredient.amount;
+                  } else {
+                    // Different units - add as separate line with details
+                    existing.variations = existing.variations || [];
+                    existing.variations.push({
+                      amount: ingredient.amount,
+                      unit: ingredient.unit,
+                      specificName: ingredient.name
+                    });
+                  }
                 } else {
-                  groceryMap[ingredient.name] = {
+                  // New ingredient
+                  groceryMap[baseKey] = {
+                    displayName: ingredient.name, // Keep the first version's full name
                     amount: ingredient.amount,
-                    unit: ingredient.unit
+                    unit: ingredient.unit,
+                    variations: []
                   };
                 }
               });
             });
             
-            return Object.entries(groceryMap).map(([name, data]) => ({ name, ...data }));
+            // Convert to array and handle variations
+            const groceryList = [];
+            Object.entries(groceryMap).forEach(([key, data]) => {
+              // Add main ingredient
+              groceryList.push({
+                name: data.displayName,
+                amount: data.amount,
+                unit: data.unit
+              });
+              
+              // Add variations if they exist
+              if (data.variations && data.variations.length > 0) {
+                data.variations.forEach(variation => {
+                  groceryList.push({
+                    name: `  ↳ ${variation.specificName}`,
+                    amount: variation.amount,
+                    unit: variation.unit
+                  });
+                });
+              }
+            });
+            
+            return groceryList;
           };
 
           const calculateNutrition = () => {
@@ -525,7 +584,7 @@
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
-                        v1.4.0
+                        v1.5.0
                       </div>
                     </div>
                   </div>
