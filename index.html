@@ -32,7 +32,7 @@
         const { useState, useEffect, useMemo } = React;
 
         const MealPlannerApp = () => {
-          const APP_VERSION = '2.1.2';
+          const APP_VERSION = '2.1.3';
           
           const defaultRecipes = []; // Start with empty recipes - user will import JSON
           
@@ -411,37 +411,30 @@
           const exportGroceryListToReminders = () => {
             const groceryList = generateGroceryList();
             
-            // Create .ics content for Apple Reminders
-            let icsContent = 'BEGIN:VCALENDAR\r\n';
-            icsContent += 'VERSION:2.0\r\n';
-            icsContent += 'PRODID:-//Meal Planner//Grocery List//EN\r\n';
-            icsContent += 'CALSCALE:GREGORIAN\r\n';
-            
-            groceryList.forEach((item, index) => {
-              const uid = `grocery-${Date.now()}-${index}@mealplanner.com`;
-              const summary = `${item.name} - ${item.amount} ${item.unit}`;
-              
-              icsContent += 'BEGIN:VTODO\r\n';
-              icsContent += `UID:${uid}\r\n`;
-              icsContent += `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z\r\n`;
-              icsContent += `SUMMARY:${summary}\r\n`;
+            // Create simple text format for easy copy/paste
+            let textContent = '📋 Grocery List\n\n';
+            groceryList.forEach(item => {
+              const amount = item.amount > 0 ? `${item.amount} ${item.unit}` : '';
+              textContent += `☐ ${item.name}${amount ? ' - ' + amount : ''}\n`;
               if (item.recipes && item.recipes.length > 0) {
-                icsContent += `DESCRIPTION:For: ${item.recipes.join(', ')}\r\n`;
+                textContent += `   (for: ${item.recipes.join(', ')})\n`;
               }
-              icsContent += 'STATUS:NEEDS-ACTION\r\n';
-              icsContent += 'END:VTODO\r\n';
             });
             
-            icsContent += 'END:VCALENDAR\r\n';
-            
-            // Download the file
-            const blob = new Blob([icsContent], { type: 'text/calendar' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'grocery-list.ics';
-            a.click();
-            URL.revokeObjectURL(url);
+            // Copy to clipboard
+            navigator.clipboard.writeText(textContent).then(() => {
+              alert('✅ Grocery list copied to clipboard!\n\nTo add to Apple Reminders:\n1. Open Reminders app\n2. Create or open a list\n3. Paste (Cmd+V or long-press)\n4. Each line becomes a reminder!');
+            }).catch(() => {
+              // Fallback: download as text file
+              const blob = new Blob([textContent], { type: 'text/plain' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'grocery-list.txt';
+              a.click();
+              URL.revokeObjectURL(url);
+              alert('✅ Grocery list downloaded as text file!\n\nOpen the file and copy/paste into Reminders app.');
+            });
           };
 
           const exportData = () => {
@@ -488,7 +481,7 @@
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
-                        v2.1.2
+                        v2.1.3
                       </div>
                     </div>
                   </div>
@@ -996,7 +989,7 @@
                             onClick={exportGroceryListToReminders}
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
                           >
-                            📱 Export to Reminders
+                            📋 Copy List
                           </button>
                           <button
                             onClick={clearAllChecks}
