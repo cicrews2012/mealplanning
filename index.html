@@ -32,7 +32,7 @@
         const { useState, useEffect, useMemo } = React;
 
         const MealPlannerApp = () => {
-          const APP_VERSION = '1.9.2';
+          const APP_VERSION = '2.1.0';
           
           const defaultRecipes = []; // Start with empty recipes - user will import JSON
           
@@ -61,6 +61,9 @@
           const [newPantryItem, setNewPantryItem] = useState('');
           const [searchQuery, setSearchQuery] = useState('');
           const [checkedGroceryItems, setCheckedGroceryItems] = useState({});
+          const [mealHistory, setMealHistory] = useState([]);
+          const [pantryStaples, setPantryStaples] = useState([]);
+          const [filterPantryFromGrocery, setFilterPantryFromGrocery] = useState(true);
           
           const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
           const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
@@ -82,11 +85,17 @@
             const savedRecipes = localStorage.getItem('customRecipes');
             const savedPantry = localStorage.getItem('pantryItems');
             const savedChecked = localStorage.getItem('checkedGroceryItems');
+            const savedHistory = localStorage.getItem('mealHistory');
+            const savedStaples = localStorage.getItem('pantryStaples');
+            const savedFilter = localStorage.getItem('filterPantryFromGrocery');
             
             if (savedMeals) setMeals(JSON.parse(savedMeals));
             if (savedRecipes) setRecipes(JSON.parse(savedRecipes));
             if (savedPantry) setPantryItems(JSON.parse(savedPantry));
             if (savedChecked) setCheckedGroceryItems(JSON.parse(savedChecked));
+            if (savedHistory) setMealHistory(JSON.parse(savedHistory));
+            if (savedStaples) setPantryStaples(JSON.parse(savedStaples));
+            if (savedFilter !== null) setFilterPantryFromGrocery(JSON.parse(savedFilter));
           }, []);
 
           const saveMeals = (newMeals) => {
@@ -277,6 +286,17 @@
               details: data.details
             }));
             
+            // Filter out pantry staples if enabled
+            if (filterPantryFromGrocery && pantryStaples.length > 0) {
+              const normalizeForComparison = (str) => str.toLowerCase().trim();
+              const stapleLookup = new Set(pantryStaples.map(normalizeForComparison));
+              
+              return list.filter(item => {
+                const itemName = normalizeForComparison(item.name);
+                return !stapleLookup.has(itemName);
+              });
+            }
+            
             return list;
           };
 
@@ -343,6 +363,49 @@
           const clearAllChecks = () => {
             setCheckedGroceryItems({});
             localStorage.removeItem('checkedGroceryItems');
+          };
+
+          const saveWeekToHistory = () => {
+            if (meals.length === 0) {
+              alert('No meals to save to history!');
+              return;
+            }
+            
+            const weekName = prompt('Name this week (e.g., "Week of Jan 6" or "Holiday Week"):');
+            if (!weekName) return;
+            
+            const historyEntry = {
+              id: Date.now(),
+              name: weekName,
+              date: new Date().toISOString(),
+              meals: JSON.parse(JSON.stringify(meals)) // Deep copy
+            };
+            
+            const newHistory = [historyEntry, ...mealHistory];
+            setMealHistory(newHistory);
+            localStorage.setItem('mealHistory', JSON.stringify(newHistory));
+            
+            alert(`Week saved to history as "${weekName}"!`);
+          };
+
+          const loadWeekFromHistory = (historyEntry) => {
+            if (meals.length > 0) {
+              if (!confirm('This will replace your current meal plan. Continue?')) {
+                return;
+              }
+            }
+            
+            saveMeals(historyEntry.meals);
+            setActiveTab('planner');
+            alert(`Loaded "${historyEntry.name}" into your planner!`);
+          };
+
+          const deleteHistoryEntry = (id) => {
+            if (!confirm('Delete this week from history?')) return;
+            
+            const newHistory = mealHistory.filter(entry => entry.id !== id);
+            setMealHistory(newHistory);
+            localStorage.setItem('mealHistory', JSON.stringify(newHistory));
           };
 
           const exportGroceryListToReminders = () => {
@@ -425,7 +488,7 @@
                     </div>
                     <div className="text-right">
                       <div className="text-xs text-slate-400 bg-slate-700 px-3 py-1 rounded-full">
-                        v1.9.2
+                        v2.1.0
                       </div>
                     </div>
                   </div>
@@ -447,6 +510,7 @@
                       { key: 'planner', label: '📅 Planner' },
                       { key: 'cookbook', label: '📖 Cookbook' },
                       { key: 'grocery', label: '🛒 Grocery' },
+                      { key: 'history', label: '📜 History' },
                       { key: 'pantry', label: '💡 Smart Match' },
                       { key: 'nutrition', label: '📊 Nutrition' }
                     ].map(({ key, label }) => (
@@ -468,16 +532,24 @@
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-2xl font-bold text-white">Weekly Meal Plan</h2>
                       {meals.length > 0 && (
-                        <button
-                          onClick={() => {
-                            if (confirm('Are you sure you want to clear all meals from your weekly plan?')) {
-                              saveMeals([]);
-                            }
-                          }}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-                        >
-                          🗑️ Clear All
-                        </button>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={saveWeekToHistory}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                          >
+                            💾 Save to History
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to clear all meals from your weekly plan?')) {
+                                saveMeals([]);
+                              }
+                            }}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                          >
+                            🗑️ Clear All
+                          </button>
+                        </div>
                       )}
                     </div>
                     <div className="overflow-x-auto">
@@ -932,6 +1004,58 @@
                         </div>
                       )}
                     </div>
+
+                    {/* Pantry Staples Section */}
+                    <div className="mb-6 p-4 bg-slate-700 rounded-lg border border-slate-600">
+                      <div className="flex justify-between items-center mb-3">
+                        <h3 className="font-bold text-white">Pantry Staples</h3>
+                        <label className="flex items-center gap-2 text-sm text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={filterPantryFromGrocery}
+                            onChange={(e) => {
+                              setFilterPantryFromGrocery(e.target.checked);
+                              localStorage.setItem('filterPantryFromGrocery', JSON.stringify(e.target.checked));
+                            }}
+                            className="w-4 h-4 rounded"
+                          />
+                          Hide staples from list
+                        </label>
+                      </div>
+                      <p className="text-sm text-slate-400 mb-3">Items you always have at home (salt, oil, etc.)</p>
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          type="text"
+                          placeholder="Add staple (e.g., Salt, Olive oil)"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && e.target.value.trim()) {
+                              const newStaples = [...pantryStaples, e.target.value.trim()];
+                              setPantryStaples(newStaples);
+                              localStorage.setItem('pantryStaples', JSON.stringify(newStaples));
+                              e.target.value = '';
+                            }
+                          }}
+                          className="flex-1 p-2 border border-slate-600 rounded bg-slate-800 text-white placeholder-slate-400"
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {pantryStaples.map((item, index) => (
+                          <div key={index} className="flex items-center gap-2 px-3 py-1 bg-slate-800 border border-slate-600 rounded-full">
+                            <span className="text-white text-sm">{item}</span>
+                            <button
+                              onClick={() => {
+                                const newStaples = pantryStaples.filter((_, i) => i !== index);
+                                setPantryStaples(newStaples);
+                                localStorage.setItem('pantryStaples', JSON.stringify(newStaples));
+                              }}
+                              className="text-red-400 hover:text-red-300 font-bold"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                     
                     {groceryList.length === 0 ? (
                       <p className="text-slate-400 text-center py-8">No meals planned yet. Add meals to generate your grocery list!</p>
@@ -980,6 +1104,69 @@
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'history' && (
+                  <div className="bg-slate-800 rounded-lg shadow-lg p-6 border border-slate-700">
+                    <h2 className="text-2xl font-bold text-white mb-4">Meal History</h2>
+                    
+                    {mealHistory.length === 0 ? (
+                      <div className="text-center py-12">
+                        <p className="text-slate-400 text-lg mb-2">No meal history yet</p>
+                        <p className="text-slate-500 text-sm">Plan a week and click "💾 Save to History" to start tracking!</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {mealHistory.map(entry => (
+                          <div key={entry.id} className="border border-slate-600 rounded-lg p-4 bg-slate-750">
+                            <div className="flex justify-between items-start mb-3">
+                              <div>
+                                <h3 className="font-bold text-lg text-white">{entry.name}</h3>
+                                <p className="text-sm text-slate-400">
+                                  {new Date(entry.date).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                  })}
+                                </p>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => loadWeekFromHistory(entry)}
+                                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+                                >
+                                  📥 Load
+                                </button>
+                                <button
+                                  onClick={() => deleteHistoryEntry(entry.id)}
+                                  className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </div>
+                            <div className="text-sm text-slate-300">
+                              <span className="font-semibold">{entry.meals.length} meals planned</span>
+                              {entry.meals.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1">
+                                  {entry.meals.slice(0, 5).map((meal, idx) => (
+                                    <span key={idx} className="bg-slate-700 px-2 py-1 rounded text-xs">
+                                      {meal.isCustom ? meal.customName : meal.recipe.name}
+                                    </span>
+                                  ))}
+                                  {entry.meals.length > 5 && (
+                                    <span className="text-slate-500 text-xs px-2 py-1">
+                                      +{entry.meals.length - 5} more
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
