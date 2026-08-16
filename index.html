@@ -31,8 +31,183 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
+        // --- Shared ingredient name normalization (used by grocery aggregation,
+        // pantry-staple filtering, and pantry "smart match") ---
+        const PREP_WORDS_RE = /\b(boneless|skinless|bone-in|skin-on|fresh|frozen|raw|cooked|large|small|medium|ground|shredded|grated|canned|dried|ripe|diced|chopped|minced|sliced|halved|peeled)\b/g;
+        const KEEP_AS_IS_WORDS = new Set(['peas', 'grits', 'oats', 'greens']);
+
+        const singularizeWord = (word) => {
+          if (KEEP_AS_IS_WORDS.has(word) || word.length <= 3) return word;
+          if (word.endsWith('ies')) return word.slice(0, -3) + 'y';
+          if (word.endsWith('oes')) return word.slice(0, -2);
+          if (/(?:s|x|z|ch|sh)es$/.test(word)) return word.slice(0, -2);
+          if (word.endsWith('ss') || word.endsWith('us')) return word;
+          if (word.endsWith('s')) return word.slice(0, -1);
+          return word;
+        };
+
+        const normalizeIngredientName = (name) => {
+          let n = (name || '').toLowerCase();
+          n = n.replace(/\([^)]*\)/g, ' ');
+          n = n.replace(PREP_WORDS_RE, ' ');
+          n = n.replace(/,/g, ' ');
+          n = n.replace(/\s+/g, ' ').trim();
+          n = n.split(' ').filter(Boolean).map(singularizeWord).join(' ');
+          return n;
+        };
+
+        // --- Unit conversion for grocery aggregation ---
+        const UNIT_INFO = {
+          tsp: { category: 'volume', toBase: 4.92892 },
+          tbsp: { category: 'volume', toBase: 14.7868 },
+          cup: { category: 'volume', toBase: 236.588 },
+          ml: { category: 'volume', toBase: 1 },
+          oz: { category: 'weight', toBase: 28.3495 },
+          lb: { category: 'weight', toBase: 453.592 },
+          g: { category: 'weight', toBase: 1 },
+          piece: { category: 'piece', toBase: 1 },
+          '': { category: 'none', toBase: 1 }
+        };
+        const unitInfoFor = (unit) => UNIT_INFO[unit] || UNIT_INFO.piece;
+
+        const pickDisplayUnit = (unitCounts) => {
+          let best = null;
+          let bestCount = -1;
+          for (const [unit, count] of Object.entries(unitCounts)) {
+            if (count > bestCount) {
+              best = unit;
+              bestCount = count;
+            }
+          }
+          return best;
+        };
+
+        // --- Paste-a-recipe heuristic parser ---
+        const UNIT_SYNONYMS = {
+          teaspoon: 'tsp', teaspoons: 'tsp', tsp: 'tsp',
+          tablespoon: 'tbsp', tablespoons: 'tbsp', tbsp: 'tbsp', tbsps: 'tbsp',
+          cup: 'cup', cups: 'cup',
+          ounce: 'oz', ounces: 'oz', oz: 'oz',
+          pound: 'lb', pounds: 'lb', lb: 'lb', lbs: 'lb',
+          gram: 'g', grams: 'g', g: 'g',
+          milliliter: 'ml', milliliters: 'ml', ml: 'ml',
+          clove: 'piece', cloves: 'piece',
+          can: 'piece', cans: 'piece',
+          slice: 'piece', slices: 'piece',
+          piece: 'piece', pieces: 'piece'
+        };
+        const UNICODE_FRACTIONS = {
+          '½': 0.5, '⅓': 1 / 3, '⅔': 2 / 3, '¼': 0.25, '¾': 0.75,
+          '⅕': 0.2, '⅖': 0.4, '⅗': 0.6, '⅘': 0.8,
+          '⅙': 1 / 6, '⅚': 5 / 6, '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875
+        };
+        const FRACTION_CHARS = Object.keys(UNICODE_FRACTIONS).join('');
+
+        const parseLeadingQuantity = (text) => {
+          const s = text.trim();
+          let match = s.match(/^(\d+)\s+(\d+)\/(\d+)\s*/);
+          if (match) {
+            return { amount: parseInt(match[1]) + parseInt(match[2]) / parseInt(match[3]), rest: s.slice(match[0].length) };
+          }
+          match = s.match(new RegExp(`^(\\d+)([${FRACTION_CHARS}])\\s*`));
+          if (match) {
+            return { amount: parseInt(match[1]) + UNICODE_FRACTIONS[match[2]], rest: s.slice(match[0].length) };
+          }
+          match = s.match(new RegExp(`^([${FRACTION_CHARS}])\\s*`));
+          if (match) {
+            return { amount: UNICODE_FRACTIONS[match[1]], rest: s.slice(match[0].length) };
+          }
+          match = s.match(/^(\d+)\/(\d+)\s*/);
+          if (match) {
+            return { amount: parseInt(match[1]) / parseInt(match[2]), rest: s.slice(match[0].length) };
+          }
+          match = s.match(/^(\d+(?:\.\d+)?)\s*-\s*\d+(?:\.\d+)?\s*/);
+          if (match) {
+            return { amount: parseFloat(match[1]), rest: s.slice(match[0].length) };
+          }
+          match = s.match(/^(\d+(?:\.\d+)?)\s*/);
+          if (match) {
+            return { amount: parseFloat(match[1]), rest: s.slice(match[0].length) };
+          }
+          return null;
+        };
+
+        const parseIngredientLine = (line) => {
+          const stripped = line.replace(/^[-•*]\s*/, '').trim();
+          const q = parseLeadingQuantity(stripped);
+          if (!q) {
+            return { name: stripped.replace(/^of\s+/i, '').trim(), amount: '', unit: 'piece' };
+          }
+          const rest = q.rest.trim();
+          const wordMatch = rest.match(/^([a-zA-Z.]+)\.?\s+(.*)$/) || rest.match(/^([a-zA-Z.]+)\.?$/);
+          let unit = 'piece';
+          let name = rest;
+          if (wordMatch) {
+            const candidate = wordMatch[1].toLowerCase().replace(/\.$/, '');
+            if (UNIT_SYNONYMS[candidate]) {
+              unit = UNIT_SYNONYMS[candidate];
+              name = (wordMatch[2] || '').trim();
+            }
+          }
+          name = name.replace(/^of\s+/i, '').trim();
+          if (!name) name = rest;
+          return { name, amount: q.amount, unit };
+        };
+
+        const looksLikeIngredientLine = (line) => {
+          const stripped = line.replace(/^[-•*]\s*/, '').trim();
+          return parseLeadingQuantity(stripped) !== null;
+        };
+
+        const parsePastedRecipe = (rawText) => {
+          const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+          const ingredientHeaderRe = /^ingredients?\s*:?$/i;
+          const instructionHeaderRe = /^(instructions?|directions?|method|steps?)\s*:?$/i;
+
+          let ingredientLines = [];
+          let instructionLines = [];
+          let titleLine = '';
+
+          const ingredientHeaderIdx = lines.findIndex(l => ingredientHeaderRe.test(l));
+          const instructionHeaderIdx = lines.findIndex(l => instructionHeaderRe.test(l));
+
+          if (ingredientHeaderIdx !== -1 && instructionHeaderIdx !== -1 && instructionHeaderIdx > ingredientHeaderIdx) {
+            ingredientLines = lines.slice(ingredientHeaderIdx + 1, instructionHeaderIdx);
+            instructionLines = lines.slice(instructionHeaderIdx + 1);
+            if (ingredientHeaderIdx > 0) titleLine = lines[0];
+          } else {
+            lines.forEach((line, i) => {
+              if (ingredientHeaderRe.test(line) || instructionHeaderRe.test(line)) return;
+              if (looksLikeIngredientLine(line)) {
+                ingredientLines.push(line);
+              } else if (i === 0 && line.length < 80 && !/\d/.test(line)) {
+                titleLine = line;
+              } else {
+                instructionLines.push(line);
+              }
+            });
+          }
+
+          const ingredients = ingredientLines
+            .filter(l => !ingredientHeaderRe.test(l))
+            .map(parseIngredientLine)
+            .filter(ing => ing.name);
+
+          const instructions = instructionLines
+            .filter(l => !instructionHeaderRe.test(l))
+            .map(l => l.replace(/^(\d+[.)]|step\s*\d+[:.]?|[-•*])\s*/i, '').trim())
+            .filter(l => l.length > 0)
+            .join('\n');
+
+          return {
+            name: titleLine,
+            ingredients: ingredients.length > 0 ? ingredients : [{ name: '', amount: '', unit: 'g' }],
+            instructions
+          };
+        };
+
         const MealPlannerApp = () => {
-          const APP_VERSION = '2.6.0';
+          const APP_VERSION = '2.7.0';
           
           const defaultRecipes = []; // Start with empty recipes - user will import JSON
           
@@ -66,6 +241,9 @@
           const [filterPantryFromGrocery, setFilterPantryFromGrocery] = useState(true);
           const [cookMode, setCookMode] = useState(false);
           const [wakeLock, setWakeLock] = useState(null);
+          const [showPasteBox, setShowPasteBox] = useState(false);
+          const [pasteRecipeText, setPasteRecipeText] = useState('');
+          const [parseSummary, setParseSummary] = useState('');
           
           const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
           const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Kids'];
@@ -189,6 +367,20 @@
             setCustomRecipe({ ...customRecipe, ingredients: customRecipe.ingredients.filter((_, i) => i !== index) });
           };
 
+          const handleParsePastedRecipe = () => {
+            if (!pasteRecipeText.trim()) return;
+            const parsed = parsePastedRecipe(pasteRecipeText);
+            setCustomRecipe({
+              ...customRecipe,
+              name: customRecipe.name || parsed.name,
+              ingredients: parsed.ingredients,
+              instructions: parsed.instructions || customRecipe.instructions
+            });
+            const ingredientCount = parsed.ingredients.filter(i => i.name).length;
+            const stepCount = parsed.instructions ? parsed.instructions.split('\n').filter(Boolean).length : 0;
+            setParseSummary(`Detected ${ingredientCount} ingredient${ingredientCount === 1 ? '' : 's'} and ${stepCount} instruction step${stepCount === 1 ? '' : 's'} — please review below before saving.`);
+          };
+
           const saveCustomRecipe = () => {
             if (!customRecipe.name) {
               alert('Please fill in recipe name');
@@ -229,6 +421,9 @@
               prepTime: '',
               cookTime: ''
             });
+            setPasteRecipeText('');
+            setParseSummary('');
+            setShowPasteBox(false);
             setShowAddRecipe(false);
           };
 
@@ -254,45 +449,40 @@
 
           const generateGroceryList = () => {
             const groceryMap = {};
-            
-            // Helper function to normalize ingredient names for smart matching
-            const normalizeIngredient = (name) => {
-              return name.toLowerCase()
-                .replace(/\b(boneless|skinless|bone-in|skin-on|fresh|frozen|raw|cooked|large|small|medium|diced|chopped|minced|sliced)\b/g, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-            };
-            
+
             meals.forEach(meal => {
               // Skip custom meals (they don't have recipes/ingredients)
               if (meal.isCustom) return;
-              
+
               meal.recipe.ingredients.forEach(ingredient => {
-                const normalized = normalizeIngredient(ingredient.name);
-                
+                const normalized = normalizeIngredientName(ingredient.name);
+
                 // Look for existing similar ingredient
                 let matchedKey = null;
                 for (let existingName in groceryMap) {
-                  if (normalizeIngredient(existingName) === normalized) {
+                  if (normalizeIngredientName(existingName) === normalized) {
                     matchedKey = existingName;
                     break;
                   }
                 }
-                
+
+                const ingredientCategory = unitInfoFor(ingredient.unit).category;
+
                 if (matchedKey) {
                   // Found a match - combine them
                   const existing = groceryMap[matchedKey];
-                  
+
                   // Add recipe to the list
                   if (!existing.recipes.includes(meal.recipe.name)) {
                     existing.recipes.push(meal.recipe.name);
                   }
-                  
-                  // Combine amounts if same unit
-                  if (existing.unit === ingredient.unit) {
-                    existing.amount += ingredient.amount;
+
+                  // Combine amounts if the units are in the same convertible category
+                  if (existing.category === ingredientCategory && existing.category !== 'none') {
+                    existing.baseAmount += ingredient.amount * unitInfoFor(ingredient.unit).toBase;
+                    existing.unitCounts[ingredient.unit] = (existing.unitCounts[ingredient.unit] || 0) + 1;
                   } else {
-                    // Different units - add as separate detail
+                    // Incompatible units - add as separate detail instead of summing
                     existing.details.push({
                       amount: ingredient.amount,
                       unit: ingredient.unit,
@@ -302,35 +492,38 @@
                 } else {
                   // New ingredient
                   groceryMap[ingredient.name] = {
-                    amount: ingredient.amount,
-                    unit: ingredient.unit,
+                    baseAmount: ingredient.amount * unitInfoFor(ingredient.unit).toBase,
+                    category: ingredientCategory,
+                    unitCounts: { [ingredient.unit]: 1 },
                     recipes: [meal.recipe.name],
                     details: []
                   };
                 }
               });
             });
-            
-            // Convert to array
-            const list = Object.entries(groceryMap).map(([name, data]) => ({
-              name,
-              amount: data.amount,
-              unit: data.unit,
-              recipes: data.recipes,
-              details: data.details
-            }));
-            
+
+            // Convert to array, converting summed base amounts back to a display unit
+            const list = Object.entries(groceryMap).map(([name, data]) => {
+              const displayUnit = pickDisplayUnit(data.unitCounts);
+              const amount = Math.round((data.baseAmount / unitInfoFor(displayUnit).toBase) * 100) / 100;
+              return {
+                name,
+                amount,
+                unit: displayUnit,
+                recipes: data.recipes,
+                details: data.details
+              };
+            });
+
             // Filter out pantry staples if enabled
             if (filterPantryFromGrocery && pantryStaples.length > 0) {
-              const normalizeForComparison = (str) => str.toLowerCase().trim();
-              const stapleLookup = new Set(pantryStaples.map(normalizeForComparison));
-              
+              const stapleLookup = new Set(pantryStaples.map(normalizeIngredientName));
+
               return list.filter(item => {
-                const itemName = normalizeForComparison(item.name);
-                return !stapleLookup.has(itemName);
+                return !stapleLookup.has(normalizeIngredientName(item.name));
               });
             }
-            
+
             return list;
           };
 
@@ -349,13 +542,13 @@
           };
 
           const findMatchingRecipes = () => {
-            const pantrySet = new Set(pantryItems.map(item => item.toLowerCase().trim()));
-            
+            const pantrySet = new Set(pantryItems.map(normalizeIngredientName));
+
             return recipes.map(recipe => {
-              const recipeIngredients = recipe.ingredients.map(ing => ing.name.toLowerCase());
+              const recipeIngredients = recipe.ingredients.map(ing => normalizeIngredientName(ing.name));
               const matchingIngredients = recipeIngredients.filter(ing => pantrySet.has(ing));
               const missingIngredients = recipe.ingredients.filter(
-                ing => !pantrySet.has(ing.name.toLowerCase())
+                ing => !pantrySet.has(normalizeIngredientName(ing.name))
               );
               
               const matchPercentage = (matchingIngredients.length / recipeIngredients.length) * 100;
@@ -699,7 +892,37 @@ Run your "Import Grocery List" shortcut now.`);
                     {showAddRecipe && (
                       <div className="mb-6 p-4 bg-slate-700 rounded-lg border border-slate-600">
                         <h3 className="font-bold text-lg mb-3 text-white">Create New Recipe</h3>
-                        
+
+                        <div className="mb-4 p-3 bg-slate-800 rounded-lg border border-slate-600">
+                          <button
+                            type="button"
+                            onClick={() => setShowPasteBox(!showPasteBox)}
+                            className="text-sm font-semibold text-blue-400 hover:text-blue-300"
+                          >
+                            {showPasteBox ? '▾' : '▸'} 📋 Paste Recipe Text (auto-fill ingredients & instructions)
+                          </button>
+                          {showPasteBox && (
+                            <div className="mt-3">
+                              <textarea
+                                placeholder="Paste a recipe you copied from a website here (ingredients + instructions)..."
+                                value={pasteRecipeText}
+                                onChange={(e) => setPasteRecipeText(e.target.value)}
+                                className="w-full p-3 border border-slate-600 rounded min-h-[150px] bg-slate-900 text-white placeholder-slate-400"
+                              />
+                              <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                <button
+                                  type="button"
+                                  onClick={handleParsePastedRecipe}
+                                  className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm"
+                                >
+                                  ✨ Parse Recipe
+                                </button>
+                                {parseSummary && <span className="text-sm text-slate-400">{parseSummary}</span>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         <input
                           type="text"
                           placeholder="Recipe name *"
@@ -791,7 +1014,7 @@ Run your "Import Grocery List" shortcut now.`);
 
                         <div className="flex gap-2">
                           <button onClick={saveCustomRecipe} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">💾 Save Recipe</button>
-                          <button onClick={() => setShowAddRecipe(false)} className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-500">Cancel</button>
+                          <button onClick={() => { setShowAddRecipe(false); setPasteRecipeText(''); setParseSummary(''); setShowPasteBox(false); }} className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-500">Cancel</button>
                         </div>
                       </div>
                     )}
@@ -1110,7 +1333,7 @@ Run your "Import Grocery List" shortcut now.`);
                     ) : (
                       <div className="space-y-2">
                         {groceryList.map((item, index) => {
-                          const itemKey = `${item.name}-${item.amount}-${item.unit}`;
+                          const itemKey = normalizeIngredientName(item.name);
                           const isChecked = checkedGroceryItems[itemKey] || false;
                           
                           return (
