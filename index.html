@@ -207,7 +207,7 @@
         };
 
         const MealPlannerApp = () => {
-          const APP_VERSION = '2.8.0';
+          const APP_VERSION = '2.8.1';
           
           const defaultRecipes = []; // Start with empty recipes - user will import JSON
           
@@ -661,13 +661,23 @@
               return;
             }
 
+            // Only copy items that haven't been checked off as "have at home"
+            const uncheckedGroceryItems = groceryList.filter(item => !checkedGroceryItems[normalizeIngredientName(item.name)]);
+            const uncheckedManualItems = manualGroceryItems.filter(item => !checkedGroceryItems[`manual-${item.id}`]);
+            const uncheckedCount = uncheckedGroceryItems.length + uncheckedManualItems.length;
+
+            if (uncheckedCount === 0) {
+              alert('Everything is checked off — nothing to copy!');
+              return;
+            }
+
             // Create clean line-by-line format (ONLY item name and amount, nothing else)
             let textContent = '';
-            groceryList.forEach(item => {
+            uncheckedGroceryItems.forEach(item => {
               const amount = item.amount > 0 ? ` - ${item.amount} ${item.unit}` : '';
               textContent += `${item.name}${amount}\n`;
             });
-            manualGroceryItems.forEach(item => {
+            uncheckedManualItems.forEach(item => {
               textContent += `${item.text}\n`;
             });
 
@@ -676,7 +686,7 @@
 
             // Copy to clipboard
             navigator.clipboard.writeText(textContent).then(() => {
-              alert(`✅ Copied ${totalItems} items!
+              alert(`✅ Copied ${uncheckedCount} items!
 
 Ready to import to Reminders!
 Run your "Import Grocery List" shortcut now.`);
