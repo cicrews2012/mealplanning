@@ -82,6 +82,69 @@
           return best;
         };
 
+        // --- Manual grocery-item merge (one-time, session-scoped fix for names the
+        // automatic normalizer doesn't catch, e.g. "chicken" vs "chicken breast") ---
+        const applyGroceryMerges = (list, mergeGroups) => {
+          if (!mergeGroups || mergeGroups.length === 0) return list;
+
+          const byKey = {};
+          list.forEach(item => {
+            byKey[normalizeIngredientName(item.name)] = item;
+          });
+
+          const consumedKeys = new Set();
+          const mergedRows = [];
+
+          mergeGroups.forEach(group => {
+            const memberItems = group.memberKeys.map(k => byKey[k]).filter(Boolean);
+            if (memberItems.length < 2) return;
+
+            let baseAmount = 0;
+            let category = null;
+            const unitCounts = {};
+            const recipes = [];
+            const details = [];
+
+            memberItems.forEach(item => {
+              const itemCategory = unitInfoFor(item.unit).category;
+              if (category === null) category = itemCategory;
+
+              if (itemCategory === category && category !== 'none') {
+                baseAmount += item.amount * unitInfoFor(item.unit).toBase;
+                unitCounts[item.unit] = (unitCounts[item.unit] || 0) + 1;
+              } else {
+                details.push({ amount: item.amount, unit: item.unit, from: item.name });
+              }
+
+              (item.details || []).forEach(d => details.push(d));
+              (item.recipes || []).forEach(r => {
+                if (!recipes.includes(r)) recipes.push(r);
+              });
+            });
+
+            const displayUnit = pickDisplayUnit(unitCounts);
+            const amount = displayUnit
+              ? Math.round((baseAmount / unitInfoFor(displayUnit).toBase) * 100) / 100
+              : 0;
+
+            mergedRows.push({
+              name: group.displayName,
+              amount,
+              unit: displayUnit || '',
+              recipes,
+              details,
+              mergeGroupId: group.id
+            });
+
+            group.memberKeys.forEach(k => {
+              if (byKey[k]) consumedKeys.add(k);
+            });
+          });
+
+          const untouched = list.filter(item => !consumedKeys.has(normalizeIngredientName(item.name)));
+          return [...untouched, ...mergedRows];
+        };
+
         // --- Paste-a-recipe heuristic parser ---
         const UNIT_SYNONYMS = {
           teaspoon: 'tsp', teaspoons: 'tsp', tsp: 'tsp',
@@ -207,7 +270,7 @@
         };
 
         const MealPlannerApp = () => {
-          const APP_VERSION = '2.9.0';
+          const APP_VERSION = '2.10.0';
           
           const defaultRecipes = []; // Start with empty recipes - user will import JSON
           
@@ -245,6 +308,10 @@
           const [pasteRecipeText, setPasteRecipeText] = useState('');
           const [parseSummary, setParseSummary] = useState('');
           const [manualGroceryItems, setManualGroceryItems] = useState([]);
+          const [mergeGroups, setMergeGroups] = useState([]);
+          const [mergeMode, setMergeMode] = useState(false);
+          const [selectedForMerge, setSelectedForMerge] = useState([]);
+          const [mergeNameInput, setMergeNameInput] = useState('');
           
           const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
           const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Side 1', 'Side 2', 'Kids'];
@@ -270,6 +337,7 @@
             const savedStaples = localStorage.getItem('pantryStaples');
             const savedFilter = localStorage.getItem('filterPantryFromGrocery');
             const savedManualItems = localStorage.getItem('manualGroceryItems');
+            const savedMergeGroups = sessionStorage.getItem('groceryMergeGroups');
 
             if (savedMeals) setMeals(JSON.parse(savedMeals));
             if (savedRecipes) setRecipes(JSON.parse(savedRecipes));
@@ -279,6 +347,7 @@
             if (savedStaples) setPantryStaples(JSON.parse(savedStaples));
             if (savedFilter !== null) setFilterPantryFromGrocery(JSON.parse(savedFilter));
             if (savedManualItems) setManualGroceryItems(JSON.parse(savedManualItems));
+            if (savedMergeGroups) setMergeGroups(JSON.parse(savedMergeGroups));
           }, []);
 
           const saveMeals = (newMeals) => {
@@ -308,6 +377,49 @@
 
           const removeManualGroceryItem = (id) => {
             saveManualGroceryItems(manualGroceryItems.filter(item => item.id !== id));
+          };
+
+          const saveMergeGroups = (newGroups) => {
+            setMergeGroups(newGroups);
+            sessionStorage.setItem('groceryMergeGroups', JSON.stringify(newGroups));
+          };
+
+          const toggleMergeSelection = (itemKey) => {
+            setSelectedForMerge(prev => {
+              if (prev.includes(itemKey)) return prev.filter(k => k !== itemKey);
+              const next = [...prev, itemKey];
+              if (!mergeNameInput.trim()) {
+                const item = groceryList.find(i => normalizeIngredientName(i.name) === itemKey);
+                if (item) setMergeNameInput(item.name);
+              }
+              return next;
+            });
+          };
+
+          const cancelMergeSelection = () => {
+            setSelectedForMerge([]);
+            setMergeNameInput('');
+          };
+
+          const confirmMerge = () => {
+            if (selectedForMerge.length < 2 || !mergeNameInput.trim()) return;
+
+            const newGroup = { id: Date.now(), memberKeys: selectedForMerge, displayName: mergeNameInput.trim() };
+            saveMergeGroups([...mergeGroups, newGroup]);
+
+            // Carry forward checked state onto the new merged key if any member was checked
+            const anyChecked = selectedForMerge.some(k => checkedGroceryItems[k]);
+            if (anyChecked) {
+              const newChecked = { ...checkedGroceryItems, [normalizeIngredientName(newGroup.displayName)]: true };
+              setCheckedGroceryItems(newChecked);
+              localStorage.setItem('checkedGroceryItems', JSON.stringify(newChecked));
+            }
+
+            cancelMergeSelection();
+          };
+
+          const unmergeGroup = (groupId) => {
+            saveMergeGroups(mergeGroups.filter(g => g.id !== groupId));
           };
 
           const addMeal = (day, mealType, recipeOrText) => {
@@ -653,7 +765,7 @@
           };
 
           const exportGroceryListToReminders = () => {
-            const groceryList = generateGroceryList();
+            const groceryList = applyGroceryMerges(generateGroceryList(), mergeGroups);
             const totalItems = groceryList.length + manualGroceryItems.length;
 
             if (totalItems === 0) {
@@ -725,6 +837,7 @@ Run your "Import Grocery List" shortcut now.`);
           };
 
           const groceryList = generateGroceryList();
+          const displayGroceryList = applyGroceryMerges(groceryList, mergeGroups);
           const nutrition = calculateNutrition();
           const matchingRecipes = useMemo(() => findMatchingRecipes(), [pantryItems, recipes]);
 
@@ -1286,7 +1399,7 @@ Run your "Import Grocery List" shortcut now.`);
                   <div className="bg-slate-800 rounded-lg shadow-lg p-6 border border-slate-700">
                     <div className="flex justify-between items-center mb-4">
                       <h2 className="text-2xl font-bold text-white">Grocery List</h2>
-                      {(groceryList.length > 0 || manualGroceryItems.length > 0) && (
+                      {(displayGroceryList.length > 0 || manualGroceryItems.length > 0) && (
                         <div className="flex gap-2">
                           <button
                             onClick={exportGroceryListToReminders}
@@ -1300,6 +1413,19 @@ Run your "Import Grocery List" shortcut now.`);
                           >
                             Clear Checks
                           </button>
+                          {displayGroceryList.length > 1 && (
+                            <button
+                              onClick={() => {
+                                setMergeMode(!mergeMode);
+                                cancelMergeSelection();
+                              }}
+                              className={`px-4 py-2 rounded-lg transition text-sm ${
+                                mergeMode ? 'bg-purple-700 text-white' : 'bg-purple-600 text-white hover:bg-purple-700'
+                              }`}
+                            >
+                              🔗 {mergeMode ? 'Done Merging' : 'Merge Items'}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1373,17 +1499,106 @@ Run your "Import Grocery List" shortcut now.`);
                       />
                     </div>
 
-                    {groceryList.length === 0 && manualGroceryItems.length === 0 ? (
+                    {/* Merge selection confirm panel */}
+                    {selectedForMerge.length >= 2 && (
+                      <div className="mb-6 p-4 bg-purple-900/30 rounded-lg border border-purple-700">
+                        <h3 className="font-bold text-white mb-2">Merge {selectedForMerge.length} Items</h3>
+                        <ul className="text-sm text-slate-300 mb-3 space-y-1">
+                          {selectedForMerge.map(key => {
+                            const item = groceryList.find(i => normalizeIngredientName(i.name) === key);
+                            if (!item) return null;
+                            return (
+                              <li key={key}>
+                                {item.name}{item.amount > 0 && ` — ${item.amount} ${item.unit}`}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <label className="block text-sm font-semibold mb-1 text-slate-300">Combined name:</label>
+                        <input
+                          type="text"
+                          value={mergeNameInput}
+                          onChange={(e) => setMergeNameInput(e.target.value)}
+                          placeholder="e.g., Chicken Breast"
+                          className="w-full p-2 border border-slate-600 rounded bg-slate-800 text-white placeholder-slate-400 mb-3"
+                        />
+                        {mergeNameInput.trim() && (() => {
+                          const preview = applyGroceryMerges(groceryList, [{ id: 'preview', memberKeys: selectedForMerge, displayName: mergeNameInput.trim() }]);
+                          const previewItem = preview.find(i => i.mergeGroupId === 'preview');
+                          if (!previewItem) return null;
+                          return (
+                            <div className="text-sm text-purple-200 mb-3">
+                              Combined: {previewItem.amount > 0 ? `${previewItem.amount} ${previewItem.unit} ` : ''}{previewItem.name}
+                              {previewItem.details && previewItem.details.length > 0 && (
+                                <div className="text-slate-400 mt-1">
+                                  {previewItem.details.map((d, i) => (
+                                    <div key={i}>+ {d.amount > 0 ? `${d.amount} ${d.unit} ` : ''}(from {d.from})</div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={confirmMerge}
+                            disabled={!mergeNameInput.trim()}
+                            className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                          >
+                            ✅ Confirm Merge
+                          </button>
+                          <button
+                            onClick={cancelMergeSelection}
+                            className="px-4 py-2 bg-slate-600 text-white rounded hover:bg-slate-500 text-sm"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Active Merges Section */}
+                    {mergeGroups.length > 0 && (
+                      <div className="mb-6 p-4 bg-slate-700 rounded-lg border border-slate-600">
+                        <h3 className="font-bold text-white mb-2">Merged Items</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {mergeGroups.map(group => (
+                            <div key={group.id} className="flex items-center gap-2 px-3 py-1 bg-slate-800 border border-slate-600 rounded-full">
+                              <span className="text-white text-sm">{group.displayName}</span>
+                              <button
+                                onClick={() => unmergeGroup(group.id)}
+                                className="text-red-400 hover:text-red-300 font-bold text-xs"
+                                title="Unmerge"
+                              >
+                                × Unmerge
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {displayGroceryList.length === 0 && manualGroceryItems.length === 0 ? (
                       <p className="text-slate-400 text-center py-8">No meals planned yet. Add meals to generate your grocery list!</p>
                     ) : (
                       <div className="space-y-2">
-                        {groceryList.map((item, index) => {
+                        {displayGroceryList.map((item, index) => {
                           const itemKey = normalizeIngredientName(item.name);
                           const isChecked = checkedGroceryItems[itemKey] || false;
-                          
+                          const isSelectedForMerge = selectedForMerge.includes(itemKey);
+
                           return (
-                            <div key={index} className={`border border-slate-600 rounded-lg p-4 bg-slate-750 transition ${isChecked ? 'opacity-50' : ''}`}>
+                            <div key={index} className={`border border-slate-600 rounded-lg p-4 bg-slate-750 transition ${isChecked ? 'opacity-50' : ''} ${isSelectedForMerge ? 'ring-2 ring-purple-500' : ''}`}>
                               <div className="flex items-start gap-3">
+                                {mergeMode && !item.mergeGroupId && (
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelectedForMerge}
+                                    onChange={() => toggleMergeSelection(itemKey)}
+                                    className="mt-1 w-5 h-5 rounded border-slate-500 text-purple-600 focus:ring-purple-500 focus:ring-offset-slate-800 cursor-pointer"
+                                    title="Select to merge"
+                                  />
+                                )}
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
