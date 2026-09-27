@@ -82,6 +82,44 @@
           return best;
         };
 
+        // --- Grocery-list category grouping (display-only; guessed from the name via
+        // keywords, correctable per-ingredient via a persisted override) ---
+        const GROCERY_CATEGORIES = [
+          'Produce', 'Meat & Seafood', 'Dairy & Eggs', 'Bakery & Grains',
+          'Canned & Jarred', 'Sauces & Condiments', 'Seasonings & Spices',
+          'Frozen', 'Beverages', 'Other'
+        ];
+
+        const CATEGORY_KEYWORDS = {
+          'Produce': ['tomato', 'onion', 'garlic', 'lettuce', 'spinach', 'carrot', 'potato', 'pepper', 'cucumber', 'apple', 'banana', 'lemon', 'lime', 'avocado', 'broccoli', 'celery', 'mushroom', 'basil', 'cilantro', 'parsley', 'ginger', 'fruit', 'vegetable'],
+          'Meat & Seafood': ['chicken', 'beef', 'pork', 'turkey', 'sausage', 'bacon', 'ham', 'steak', 'shrimp', 'salmon', 'fish', 'tuna', 'tilapia', 'lamb', 'meat'],
+          'Dairy & Eggs': ['milk', 'cheese', 'butter', 'yogurt', 'cream', 'egg', 'sour cream'],
+          'Bakery & Grains': ['bread', 'tortilla', 'bun', 'bagel', 'rice', 'pasta', 'noodle', 'flour', 'oat', 'quinoa', 'cereal'],
+          'Canned & Jarred': ['canned', 'bean', 'broth', 'stock', 'coconut milk', 'olive', 'pickle'],
+          'Sauces & Condiments': ['sauce', 'ketchup', 'mustard', 'mayo', 'soy sauce', 'hot sauce', 'salsa', 'dressing', 'vinegar', 'honey', 'syrup'],
+          'Seasonings & Spices': ['salt', 'pepper', 'cumin', 'paprika', 'oregano', 'cinnamon', 'spice', 'seasoning', 'chili powder', 'powder'],
+          'Frozen': ['frozen', 'ice cream'],
+          'Beverages': ['juice', 'soda', 'water', 'wine', 'beer', 'coffee', 'tea']
+        };
+
+        const guessGroceryCategory = (name) => {
+          // Match against the raw lowercased name, not the fully-normalized form:
+          // normalizeIngredientName strips words like "frozen"/"canned" as prep-state
+          // descriptors and singularizes plurals, both of which would defeat keyword
+          // matching here (e.g. "Frozen Peas" losing "frozen", "Black Beans" -> "bean").
+          const lower = (name || '').toLowerCase();
+          for (const category of GROCERY_CATEGORIES) {
+            const keywords = CATEGORY_KEYWORDS[category];
+            if (keywords && keywords.some(kw => lower.includes(kw))) return category;
+          }
+          return 'Other';
+        };
+
+        const resolveGroceryCategory = (name, overrides) => {
+          const normalized = normalizeIngredientName(name);
+          return (overrides && overrides[normalized]) || guessGroceryCategory(name);
+        };
+
         // --- Manual grocery-item merge (one-time, session-scoped fix for names the
         // automatic normalizer doesn't catch, e.g. "chicken" vs "chicken breast") ---
         const applyGroceryMerges = (list, mergeGroups) => {
@@ -270,7 +308,7 @@
         };
 
         const MealPlannerApp = () => {
-          const APP_VERSION = '2.10.0';
+          const APP_VERSION = '2.11.0';
           
           const defaultRecipes = []; // Start with empty recipes - user will import JSON
           
@@ -312,6 +350,7 @@
           const [mergeMode, setMergeMode] = useState(false);
           const [selectedForMerge, setSelectedForMerge] = useState([]);
           const [mergeNameInput, setMergeNameInput] = useState('');
+          const [categoryOverrides, setCategoryOverrides] = useState({});
           
           const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
           const mealTypes = ['Breakfast', 'Lunch', 'Dinner', 'Side 1', 'Side 2', 'Kids'];
@@ -338,6 +377,7 @@
             const savedFilter = localStorage.getItem('filterPantryFromGrocery');
             const savedManualItems = localStorage.getItem('manualGroceryItems');
             const savedMergeGroups = sessionStorage.getItem('groceryMergeGroups');
+            const savedCategoryOverrides = localStorage.getItem('categoryOverrides');
 
             if (savedMeals) setMeals(JSON.parse(savedMeals));
             if (savedRecipes) setRecipes(JSON.parse(savedRecipes));
@@ -348,6 +388,7 @@
             if (savedFilter !== null) setFilterPantryFromGrocery(JSON.parse(savedFilter));
             if (savedManualItems) setManualGroceryItems(JSON.parse(savedManualItems));
             if (savedMergeGroups) setMergeGroups(JSON.parse(savedMergeGroups));
+            if (savedCategoryOverrides) setCategoryOverrides(JSON.parse(savedCategoryOverrides));
           }, []);
 
           const saveMeals = (newMeals) => {
@@ -420,6 +461,12 @@
 
           const unmergeGroup = (groupId) => {
             saveMergeGroups(mergeGroups.filter(g => g.id !== groupId));
+          };
+
+          const setIngredientCategory = (name, category) => {
+            const newOverrides = { ...categoryOverrides, [normalizeIngredientName(name)]: category };
+            setCategoryOverrides(newOverrides);
+            localStorage.setItem('categoryOverrides', JSON.stringify(newOverrides));
           };
 
           const addMeal = (day, mealType, recipeOrText) => {
@@ -1580,107 +1627,141 @@ Run your "Import Grocery List" shortcut now.`);
 
                     {displayGroceryList.length === 0 && manualGroceryItems.length === 0 ? (
                       <p className="text-slate-400 text-center py-8">No meals planned yet. Add meals to generate your grocery list!</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {displayGroceryList.map((item, index) => {
-                          const itemKey = normalizeIngredientName(item.name);
-                          const isChecked = checkedGroceryItems[itemKey] || false;
-                          const isSelectedForMerge = selectedForMerge.includes(itemKey);
+                    ) : (() => {
+                      const groupedByCategory = {};
+                      GROCERY_CATEGORIES.forEach(cat => { groupedByCategory[cat] = { recipeItems: [], manualItems: [] }; });
+                      displayGroceryList.forEach(item => {
+                        groupedByCategory[resolveGroceryCategory(item.name, categoryOverrides)].recipeItems.push(item);
+                      });
+                      manualGroceryItems.forEach(item => {
+                        groupedByCategory[resolveGroceryCategory(item.text, categoryOverrides)].manualItems.push(item);
+                      });
 
-                          return (
-                            <div key={index} className={`border border-slate-600 rounded-lg p-4 bg-slate-750 transition ${isChecked ? 'opacity-50' : ''} ${isSelectedForMerge ? 'ring-2 ring-purple-500' : ''}`}>
-                              <div className="flex items-start gap-3">
-                                {mergeMode && !item.mergeGroupId && (
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelectedForMerge}
-                                    onChange={() => toggleMergeSelection(itemKey)}
-                                    className="mt-1 w-5 h-5 rounded border-slate-500 text-purple-600 focus:ring-purple-500 focus:ring-offset-slate-800 cursor-pointer"
-                                    title="Select to merge"
-                                  />
-                                )}
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => toggleGroceryCheck(itemKey)}
-                                  className="mt-1 w-5 h-5 rounded border-slate-500 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-800 cursor-pointer"
-                                />
-                                <div className="flex-1">
-                                  <div className="flex items-baseline justify-between gap-3">
-                                    <div className="flex items-baseline gap-3">
-                                      <span className={`font-semibold text-lg text-white ${isChecked ? 'line-through' : ''}`}>
-                                        {item.name}
-                                      </span>
-                                      {item.amount > 0 && (
-                                        <span className={`text-slate-400 ${isChecked ? 'line-through' : ''}`}>
-                                          {item.amount} {item.unit}
-                                        </span>
+                      return GROCERY_CATEGORIES.filter(cat => groupedByCategory[cat].recipeItems.length > 0 || groupedByCategory[cat].manualItems.length > 0).map(cat => (
+                        <div key={cat} className="mb-4">
+                          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wide mb-2 mt-4 border-b border-slate-700 pb-1">{cat}</h3>
+                          <div className="space-y-2">
+                            {groupedByCategory[cat].recipeItems.map((item, index) => {
+                              const itemKey = normalizeIngredientName(item.name);
+                              const isChecked = checkedGroceryItems[itemKey] || false;
+                              const isSelectedForMerge = selectedForMerge.includes(itemKey);
+
+                              return (
+                                <div key={itemKey + index} className={`border border-slate-600 rounded-lg p-4 bg-slate-750 transition ${isChecked ? 'opacity-50' : ''} ${isSelectedForMerge ? 'ring-2 ring-purple-500' : ''}`}>
+                                  <div className="flex items-start gap-3">
+                                    {mergeMode && !item.mergeGroupId && (
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelectedForMerge}
+                                        onChange={() => toggleMergeSelection(itemKey)}
+                                        className="mt-1 w-5 h-5 rounded border-slate-500 text-purple-600 focus:ring-purple-500 focus:ring-offset-slate-800 cursor-pointer"
+                                        title="Select to merge"
+                                      />
+                                    )}
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => toggleGroceryCheck(itemKey)}
+                                      className="mt-1 w-5 h-5 rounded border-slate-500 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-800 cursor-pointer"
+                                    />
+                                    <div className="flex-1">
+                                      <div className="flex items-baseline justify-between gap-3">
+                                        <div className="flex items-baseline gap-3">
+                                          <span className={`font-semibold text-lg text-white ${isChecked ? 'line-through' : ''}`}>
+                                            {item.name}
+                                          </span>
+                                          {item.amount > 0 && (
+                                            <span className={`text-slate-400 ${isChecked ? 'line-through' : ''}`}>
+                                              {item.amount} {item.unit}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <select
+                                            value={resolveGroceryCategory(item.name, categoryOverrides)}
+                                            onChange={(e) => setIngredientCategory(item.name, e.target.value)}
+                                            className="text-xs bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-slate-400"
+                                            title="Change category"
+                                          >
+                                            {GROCERY_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                          </select>
+                                          {!pantryStaples.includes(item.name) && (
+                                            <button
+                                              onClick={() => {
+                                                const newStaples = [...pantryStaples, item.name];
+                                                setPantryStaples(newStaples);
+                                                localStorage.setItem('pantryStaples', JSON.stringify(newStaples));
+                                              }}
+                                              className="px-2 py-1 bg-yellow-700 text-white rounded hover:bg-yellow-600 text-xs whitespace-nowrap"
+                                              title="Add to pantry staples"
+                                            >
+                                              + Staple
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {item.details && item.details.length > 0 && (
+                                        <div className="text-sm text-slate-400 mt-2 ml-4">
+                                          {item.details.map((detail, i) => (
+                                            <div key={i}>
+                                              {detail.amount > 0 ? `+ ${detail.amount} ${detail.unit}` : '+'} (for {detail.from})
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {item.recipes && item.recipes.length > 0 && (
+                                        <div className="text-xs text-slate-500 mt-1">
+                                          for: {item.recipes.join(', ')}
+                                        </div>
                                       )}
                                     </div>
-                                    {!pantryStaples.includes(item.name) && (
-                                      <button
-                                        onClick={() => {
-                                          const newStaples = [...pantryStaples, item.name];
-                                          setPantryStaples(newStaples);
-                                          localStorage.setItem('pantryStaples', JSON.stringify(newStaples));
-                                        }}
-                                        className="px-2 py-1 bg-yellow-700 text-white rounded hover:bg-yellow-600 text-xs whitespace-nowrap"
-                                        title="Add to pantry staples"
-                                      >
-                                        + Staple
-                                      </button>
-                                    )}
                                   </div>
-                                  {item.details && item.details.length > 0 && (
-                                    <div className="text-sm text-slate-400 mt-2 ml-4">
-                                      {item.details.map((detail, i) => (
-                                        <div key={i}>
-                                          {detail.amount > 0 ? `+ ${detail.amount} ${detail.unit}` : '+'} (for {detail.from})
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {item.recipes && item.recipes.length > 0 && (
-                                    <div className="text-xs text-slate-500 mt-1">
-                                      for: {item.recipes.join(', ')}
-                                    </div>
-                                  )}
                                 </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {manualGroceryItems.map((item) => {
-                          const itemKey = `manual-${item.id}`;
-                          const isChecked = checkedGroceryItems[itemKey] || false;
+                              );
+                            })}
+                            {groupedByCategory[cat].manualItems.map((item) => {
+                              const itemKey = `manual-${item.id}`;
+                              const isChecked = checkedGroceryItems[itemKey] || false;
 
-                          return (
-                            <div key={itemKey} className={`border border-slate-600 rounded-lg p-4 bg-slate-750 transition ${isChecked ? 'opacity-50' : ''}`}>
-                              <div className="flex items-start gap-3">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => toggleGroceryCheck(itemKey)}
-                                  className="mt-1 w-5 h-5 rounded border-slate-500 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-800 cursor-pointer"
-                                />
-                                <div className="flex-1 flex items-baseline justify-between gap-3">
-                                  <span className={`font-semibold text-lg text-white ${isChecked ? 'line-through' : ''}`}>
-                                    {item.text}
-                                  </span>
-                                  <button
-                                    onClick={() => removeManualGroceryItem(item.id)}
-                                    className="px-2 py-1 bg-red-700 text-white rounded hover:bg-red-600 text-xs whitespace-nowrap"
-                                    title="Remove item"
-                                  >
-                                    × Remove
-                                  </button>
+                              return (
+                                <div key={itemKey} className={`border border-slate-600 rounded-lg p-4 bg-slate-750 transition ${isChecked ? 'opacity-50' : ''}`}>
+                                  <div className="flex items-start gap-3">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => toggleGroceryCheck(itemKey)}
+                                      className="mt-1 w-5 h-5 rounded border-slate-500 text-blue-600 focus:ring-blue-500 focus:ring-offset-slate-800 cursor-pointer"
+                                    />
+                                    <div className="flex-1 flex items-baseline justify-between gap-3">
+                                      <span className={`font-semibold text-lg text-white ${isChecked ? 'line-through' : ''}`}>
+                                        {item.text}
+                                      </span>
+                                      <div className="flex items-center gap-2">
+                                        <select
+                                          value={resolveGroceryCategory(item.text, categoryOverrides)}
+                                          onChange={(e) => setIngredientCategory(item.text, e.target.value)}
+                                          className="text-xs bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-slate-400"
+                                          title="Change category"
+                                        >
+                                          {GROCERY_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                        <button
+                                          onClick={() => removeManualGroceryItem(item.id)}
+                                          className="px-2 py-1 bg-red-700 text-white rounded hover:bg-red-600 text-xs whitespace-nowrap"
+                                          title="Remove item"
+                                        >
+                                          × Remove
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 )}
 
